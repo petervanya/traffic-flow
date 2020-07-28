@@ -9,7 +9,7 @@ numpy, pandas, networkx
 Read data as Pandas dataframes of nodes, links and link types.
 
 ## Example
-```
+```python
 mtm = MTM()
 mtm.read_data(df_nodes, df_lt, df_links)
 
