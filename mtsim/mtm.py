@@ -34,11 +34,11 @@ class MTM:
         ======
         - Nodes : dataframe [is_zone, name, coords, pop], index: id
         - Link types : dataframe [name, v0, qmax, a, b], index: id
-        - Links : dataframe [id, id_lt, name, l, count], index: id_node_pair
+        - Links : dataframe [id, type, name, l, count], index: id_node_pair
         """
         self.df_nodes = nodes
         self._verify_nodes()
-        #self.df_nodes.set_index("id", inplace=True)
+        self.df_nodes.set_index("id", inplace=True)
         
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
@@ -73,7 +73,7 @@ class MTM:
         """Verify if link type numbers subset of link types
         and if they connect the nodes 
         ADD INDEX"""
-        assert np.isin(["id_lt", "name", "l", "count", "node_from", "node_to"],\
+        assert np.isin(["type", "name", "l", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
     
@@ -89,8 +89,8 @@ class MTM:
         # RENAME ID_LT to ID first
         self.df_links = self.df_links.reset_index()\
             .merge(\
-                df_lt.drop(["name"], 1).reset_index(), how="left", \
-                left_on="id_lt", right_on="id", suffixes=("", "_dum"))\
+                self.df_lt.drop(["name"], 1).reset_index(), how="left", \
+                left_on="type", right_on="id", suffixes=("", "_dum"))\
             .drop("id_dum", 1)
         
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
@@ -103,7 +103,7 @@ class MTM:
         self.df_links["vcur"] = self.df_links["v0"]
         
         # check if any values are missing
-        assert self.df_links["id_lt"].isna().any() == False, \
+        assert self.df_links["type"].isna().any() == False, \
             "Missing link types."
         
     
@@ -249,7 +249,7 @@ class MTM:
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param]
         
-        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy()
+        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
         D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
             self.dstrat.loc[ds, "param"]
         O *= D.sum() / O.sum() # normalisation wrt attraction
