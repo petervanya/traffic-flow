@@ -87,9 +87,8 @@ class MTM:
         """
         # merge with link types
         # RENAME ID_LT to ID first
-        self.df_links = self.df_links.reset_index()\
-            .merge(\
-                self.df_lt.drop(["name"], 1).reset_index(), how="left", \
+        self.df_links = self.df_links.merge(\
+                self.df_lt.drop(["name"], 1), how="left", \
                 left_on="type", right_on="id", suffixes=("", "_dum"))\
             .drop("id_dum", 1)
         
