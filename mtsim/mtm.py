@@ -180,15 +180,9 @@ class MTM:
         assert kind in self.basic_skim_kinds, \
             "Choose kind among %s." % self.basic_skim_kinds
         
-        paths = dict(nx.all_pairs_dijkstra_path_length(self.G, weight=kind))
-        self.skims[kind] = \
-            pd.DataFrame(columns=self.df_zones.index,\
-                         index=self.df_zones.index, dtype=float)
-
-        # REMOVE for loop for efficiency via df.loc[]
-        for i in self.df_zones.index:
-            for j in self.df_zones.index:
-                self.skims[kind].loc[i, j] = paths[i][j]
+        paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
+        self.skims[kind] = pd.DataFrame(dict(paths))\
+            .loc[self.df_zones.index, self.df_zones.index]
         
         # compute diagonal based on distance
         if diagonal == "density":
