@@ -313,13 +313,20 @@ class MTM:
                 for i in self.df_zones.index:
                     for j in self.df_zones.index:
                         p = paths[i][j]
+                        dq = self.DM.loc[i, j] * w
                         
                         for k, _ in enumerate(p[:-1]):
-                            dq = self.DM.loc[i, j] * w
                             self.G.edges[p[k], p[k+1]]["q"] += dq
-                            self.df_links.loc[tuple(sorted(p[k:k+2])), "q"] += dq
-                            
+
+                self.df_q = nx.to_pandas_edgelist(self.G)\
+                    .set_index(["source", "target"])
+
+                self.df_links["q"] = self.df_q["q"]
                 self.compute_tcur_links() # update current time and speed
+
+        self.df_links["q"] = self.df_links["q"].astype(int)
+
+
 
 
 
