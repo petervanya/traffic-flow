@@ -4,7 +4,7 @@ from numpy import sqrt, exp
 import networkx as nx
 
 
-class MTM:
+class MTMnx:
     """Macroscopic transport modelling class"""
     # global varialbles
     assignment_kinds = ["incremental"]
@@ -32,8 +32,8 @@ class MTM:
         """
         Inputs
         ======
-        - Nodes : dataframe [is_zone, name, coords, pop], index: id
-        - Link types : dataframe [name, v0, qmax, a, b], index: id
+        - Nodes : dataframe [id, is_zone, name, coords, pop]
+        - Link types : dataframe [id, name, v0, qmax, a, b]
         - Links : dataframe [id, type, name, l, count], index: id_node_pair
         """
         self.df_nodes = nodes
@@ -54,26 +54,23 @@ class MTM:
         
                 
     def _verify_nodes(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["is_zone", "name", "coords", "pop"],\
+        """Check that key columns are present"""
+        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
     
     def _verify_lt(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["v0", "qmax", "a", "b"],\
+        """Verify columns"""
+        assert np.isin(["id", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
     
     def _verify_links(self):
         """Verify if link type numbers subset of link types
-        and if they connect the nodes 
-        ADD INDEX"""
-        assert np.isin(["type", "name", "l", "count", "node_from", "node_to"],\
+        and if they connect the nodes"""
+        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
     
@@ -95,13 +92,13 @@ class MTM:
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
         # sort node order
         
-        # assign empty attributes
+        # assign new attributes
         self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
         
-        # check if any values are missing
+        # check if all links have a type
         assert self.df_links["type"].isna().any() == False, \
             "Missing link types."
         
@@ -109,9 +106,9 @@ class MTM:
     def compute_tcur_links(self):
         """Compute current travel time and speed wrt the flows
         and assign to the graph G"""
-        self.df_links["tcur"] = self.df_links.apply(lambda x: \
-            x["t0"] * (1.0 + x["a"] * (x["q"]/x["qmax"])**x["b"]), 1)
-        
+        self.df_links["tcur"] = self.df_links["t0"] * \
+            (1.0 + self.df_links["a"] * \
+            (self.df_links["q"] / self.df_links["qmax"])**self.df_links["b"])
         self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
         
         # assign to the graph
@@ -323,8 +320,6 @@ class MTM:
 
                 self.df_links["q"] = self.df_q["q"]
                 self.compute_tcur_links() # update current time and speed
-
-        self.df_links["q"] = self.df_links["q"].astype(int)
 
 
 
