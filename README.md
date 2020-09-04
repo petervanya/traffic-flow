@@ -31,7 +31,7 @@ Several examples were created:
 
 Loading example networks:
 ```python
-from mtsim.sample_networks import load_small_network
+from mtsim.sample_networks import load_network_1
 
 df_nodes, df_link_types, df_links = load_network_1()
 ```
@@ -39,9 +39,9 @@ df_nodes, df_link_types, df_links = load_network_1()
 
 Running the simulation:
 ```python
-from mtsim import MTM
+from mtsim import MTMnx
 
-mtm = MTM()
+mtm = MTMnx()
 
 # read the road network data
 mtm.read_data(df_nodes, df_link_types, df_links)
