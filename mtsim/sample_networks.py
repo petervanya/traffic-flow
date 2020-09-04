@@ -25,3 +25,15 @@ def load_network_2():
 
     return df_nodes, df_types, df_links
 
+
+def load_network_2_directed():
+    """Load a large directed network of main corridors of Slovakia"""
+    dirn = os.path.dirname(__file__) + "/examples/"
+
+    xls = pd.ExcelFile(dirn + "network_2_directed.xlsx")
+    df_nodes = xls.parse("nodes")
+    df_types = xls.parse("link_types")
+    df_links = xls.parse("links")
+
+    return df_nodes, df_types, df_links
+
