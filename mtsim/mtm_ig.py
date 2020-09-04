@@ -1,3 +1,6 @@
+"""
+Author: Katarina Simkova
+"""
 import numpy as np
 import pandas as pd
 from numpy import sqrt, exp
