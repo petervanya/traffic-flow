@@ -2,8 +2,9 @@
 Author: Katarina Simkova
 """
 import numpy as np
-import pandas as pd
 from numpy import sqrt, exp
+import pandas as pd
+import time
 import igraph as ig
 
 
@@ -25,16 +26,15 @@ class DiMTMig:
         self.dmats = {} # demand matrices
         # demand strata
         self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"])
-        ##########################
-        # K: added column "symmetric" to symmetrise some of demand matrices
-        #    later on
-        self.dpar = pd.DataFrame(columns=["skim", "func", "param", \
-                            "symmetric"]) # distribution parameters
-        ##########################
+        self.dpar = pd.DataFrame(\
+            columns=["skim", "func", "param", "symmetric"]) # distribution params
+        # optimisation results
+        self.optres = pd.DataFrame(columns=["attr_param", "dist_param"])
+        self.optout = pd.DataFrame(columns=["sum_geh", "nit", "nfev", "success"])
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
-        
+
         
     def read_data(self, nodes, link_types, links):
         """
@@ -44,9 +44,6 @@ class DiMTMig:
         - Link types : dataframe [name, v0, qmax, a, b], index: id
         - Links : dataframe [id, type, name, l, count], index: id_node_pair
         """
-        ######################################################################
-        # K: added .copy() to deep copy the DFs, just to be sure we have the
-        # right behaviour
         self.df_nodes = nodes.copy()
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
@@ -58,7 +55,6 @@ class DiMTMig:
         self._verify_lt()
         
         self.df_links = links.copy()
-        ######################################################################
         self._verify_links()
         self._assign_link_data()
         
@@ -66,26 +62,23 @@ class DiMTMig:
         
                 
     def _verify_nodes(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["is_zone", "name", "coords", "pop"],\
+        """Check that key columns are present"""
+        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
     
     def _verify_lt(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["v0", "qmax", "a", "b"],\
+        """Verify columns"""
+        assert np.isin(["id", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
     
     def _verify_links(self):
         """Verify if link type numbers subset of link types
-        and if they connect the nodes 
-        ADD INDEX"""
-        assert np.isin(["type", "name", "l", "count", "node_from", "node_to"],\
+        and if they connect the nodes"""
+        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
     
@@ -121,8 +114,6 @@ class DiMTMig:
     def compute_tcur_links(self):
         """Compute current travel time and speed wrt the flows
         and assign to the graph G"""
-   ###########################################################################
-    # K: changed lambda to simpler calculation to speed up compute_tcur_links
         self.df_links["tcur"] = self.df_links["t0"] \
                                 *(1.0 + self.df_links["a"]\
                                 * (self.df_links["q"]/self.df_links["qmax"])\
@@ -133,7 +124,6 @@ class DiMTMig:
         # assign to the graph
         self.G.es["tcur"] = self.df_links["tcur"].values
         self.G.es["vcur"] = self.df_links["vcur"].values
-  ############################################################################      
 
     def _fill_graph(self):
         """Fill the graph with read nodes and links"""
@@ -274,7 +264,7 @@ class DiMTMig:
             "Choose exp or poly function."
         assert param >= 0.0, "Parameter should be >= 0."
         assert Nit > 0, "Number of iterations should be positive."
-        assert np.logical_or((sym==False), (sym==True)),\
+        assert np.logical_or((sym == False), (sym == True)),\
              "Choose boolean value for the symmetry of the matrix."
         
         # define set of distribution parameters
@@ -298,10 +288,8 @@ class DiMTMig:
         # compute final mean average errors
         self.dist_errs = {"O": (abs(T.sum(1) - O)).sum() / len(T) / self.Nz,\
                          "D": (abs(T.sum(0) - D)).sum() / len(T) / self.Nz}
-        ##############################################
         if sym:
             T = (T + T.T) / 2.0
-        ##############################################  
         self.dmats[ds] = pd.DataFrame(T, columns=self.df_zones.index, \
                               index=self.df_zones.index)
     
@@ -309,7 +297,7 @@ class DiMTMig:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", asweights=[50, 50]):
+    def assign(self, imp, kind="incremental", ws=[50, 50]):
         """
         Perform assignment of traffic to the network.
         Use only one transport system here.
@@ -325,7 +313,7 @@ class DiMTMig:
         - imp : impedance (link attribute) for path search 
             that is computed as a skim matrix
         - kind : type of assignment
-        - asweights : assignment weights
+        - ws : assignment weights
         """
         assert kind in self.assignment_kinds, \
             "Assignment kind not available, choose from %s" % \
@@ -340,30 +328,26 @@ class DiMTMig:
         assert imp in self.basic_skim_kinds, \
             "Choose impedance among %s." % self.basic_skim_kinds
             
-        asweights = np.array(asweights)
-        asweights = asweights / asweights.sum() # normalise weights
+        ws = np.array(ws)
+        ws = ws / ws.sum() # normalise weights
         
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
 
         # remove flows and reset tcur/vcur before assignment
         ####################################################
-#         nx.set_edge_attributes(self.G, 0.0, "q")
         # K: added resetting the tcur and vcur on graph to t0 and v0, since
         # this caused the inconsistency of 1 run of the module with the module
         # running in the loop if read_data was not in the loop
-        self.G.es["q"]=0.0
-        self.G.es["tcur"]=self.df_links["t0"].values
-        self.G.es["vcur"]=self.df_links["v0"].values
-        #####################################################
+        self.G.es["q"] = 0.0
+        self.G.es["tcur"] = self.df_links["t0"].values
+        self.G.es["vcur"] = self.df_links["v0"].values
         self.df_links["q"] = 0.0
         
         if kind == "incremental":
-            for wi, w in enumerate(asweights):
+            for wi, w in enumerate(ws):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi+1, w))
- #############################################################################                   
-#  K: creating array of IDs of zone vertices as they are defined in the graph
                 vs_zones =[v.index for v in self.G.vs.select(is_zone_eq=True)]
 
                 for i in vs_zones:
@@ -374,10 +358,99 @@ class DiMTMig:
                     for j, _ in enumerate(dq):
                         self.G.es[p[j]]["q"] += dq[j]
                 
-                # K: !!! only if the order of edges is the same as in df_links
                 self.df_links["q"] = self.G.es["q"]
- #############################################################################
                 self.compute_tcur_links() # update current time and speed
+
+
+    # =====
+    # Optimisation
+    # =====
+    def optimise(self, Nit, K_low=1e-6, K_up=3.1, c_low=1e-6, c_up=0.11, \
+        asimp="tcur", seed=1101, ws=[50, 50]):
+        """
+        Optimisation of model parameters.
+
+        Input
+        =====
+        - Nit : number of iterations
+        - K_low : lower bound on trip generation parameter
+        - K_up : upper bound on trip generation parameter
+        - c_low : lower bound on trip distribution parameter
+        - c_up : upper bound on trip distribution parameter
+        - asimp : assignment impedance (t0, tcur, l)
+        - seed : random seed
+        - ws : weights in incremental assignment
+        """
+        from scipy.optimize import dual_annealing
+        # DEFINE INITIAL VALUES
+
+        optargs = (asimp, ws,)
+        bounds = [] # vector of bounds
+        for m in self.dstrat.index:
+            bounds = bounds + [(K_low, K_up), (c_low, c_up)]
+        
+        tic = time.time()
+        res = dual_annealing(self._obj_function, args=optargs, bounds=bounds, \
+            seed=seed, maxiter=Nit)
+        toc = time.time()
+        print("Optimisation terminated. Success: %s" % res.success)
+        print("Resulting parameters: %s" % res.x)
+        print("Time: %.2f s" % (toc - tic))
+    
+        for m, n in enumerate(self.dstrat.index):
+            self.optres.loc[n] = [res.x[2*m], res.x[2*m+1]]
+            
+        self.optout.loc[1] = [res.fun, res.nit, res.nfev, res.success]
+    
+
+    def geh(self):
+        """Compute the GEH of each link with a measurement"""
+        pass
+
+    
+    def _obj_function(self, z, imp, ws=[50, 50]):
+        """
+        The sum of all GEH differences between traffic counts and modelled
+        flows on links that contain the counts.
+        Serves as the objective function for the optimisation.
+        Goes through all transport modelling steps.
+
+        Input
+        =====
+        - z : array of parameters to optimise
+        - imp : impedance kind (t0, tcur, l)
+        - ws : assignment weights
+        """
+        # CATCH ERROR IF DEMAND STRATA NOT DEFINED
+
+        # trip generation
+        for m, n in enumerate(self.dstrat.index):
+            self.generate(n, self.dstrat["prod"][m], self.dstrat["attr"][m], z[2*m])
+
+        # trip distribution
+        for m, n in enumerate(self.dpar.index):
+            self.distribute(n, self.dpar["skim"][m], self.dpar["func"][m], \
+                z[2*m+1], sym=self.dpar["symmetric"][m])
+        
+        # assignment
+        self.assign(imp=imp, ws=ws)
+    
+        relevant = self.df_links[np.logical_and(\
+                (np.logical_not(np.isnan(self.df_links["count"]))),\
+                (self.df_links["count"] != 0))]
+    
+        geh = sqrt(2*(relevant["q"].values - relevant["count"].values)**2/\
+                (relevant["q"].values + relevant["count"].values)) \
+                / sqrt(10.0)
+    
+#     reg = alpha*(\
+#             self.dmats["all"].multiply(self.skims["t0"]).sum().sum()\
+#                         /self.dmats["all"].sum().sum() - xexp)**2
+#     vals = np.append(vals, suma)
+    
+        return np.sum(geh) #+ reg    
+
+
 
 
 
