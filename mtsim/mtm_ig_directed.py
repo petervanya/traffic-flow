@@ -366,7 +366,7 @@ class DiMTMig:
     # Optimisation
     # =====
     def optimise(self, Nit, K_low=1e-6, K_up=3.1, c_low=1e-6, c_up=0.11, \
-        asimp="tcur", seed=1101, ws=[50, 50]):
+        imp="tcur", seed=1101, ws=[50, 50]):
         """
         Optimisation of model parameters.
 
@@ -377,14 +377,15 @@ class DiMTMig:
         - K_up : upper bound on trip generation parameter
         - c_low : lower bound on trip distribution parameter
         - c_up : upper bound on trip distribution parameter
-        - asimp : assignment impedance (t0, tcur, l)
+        - imp : assignment impedance (t0, tcur, l)
         - seed : random seed
         - ws : weights in incremental assignment
         """
         from scipy.optimize import dual_annealing
+        assert len(self.dstrat) > 0, "No demand strata defined"
         # DEFINE INITIAL VALUES
 
-        optargs = (asimp, ws,)
+        optargs = (imp, ws)
         bounds = [] # vector of bounds
         for m in self.dstrat.index:
             bounds = bounds + [(K_low, K_up), (c_low, c_up)]
@@ -422,6 +423,7 @@ class DiMTMig:
         - ws : assignment weights
         """
         # CATCH ERROR IF DEMAND STRATA NOT DEFINED
+        assert len(self.dstrat) > 0, "No demand strata defined"
 
         # trip generation
         for m, n in enumerate(self.dstrat.index):
@@ -439,7 +441,7 @@ class DiMTMig:
                 (np.logical_not(np.isnan(self.df_links["count"]))),\
                 (self.df_links["count"] != 0))]
     
-        geh = sqrt(2*(relevant["q"].values - relevant["count"].values)**2/\
+        gehs = sqrt(2*(relevant["q"].values - relevant["count"].values)**2/\
                 (relevant["q"].values + relevant["count"].values)) \
                 / sqrt(10.0)
     
@@ -448,7 +450,7 @@ class DiMTMig:
 #                         /self.dmats["all"].sum().sum() - xexp)**2
 #     vals = np.append(vals, suma)
     
-        return np.sum(geh) #+ reg    
+        return np.sum(gehs) #+ reg    
 
 
 
