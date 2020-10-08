@@ -12,7 +12,7 @@ class DiMTMig:
     """Macroscopic transport modelling class"""
     # global varialbles
     assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "l"]
+    basic_skim_kinds = ["t0", "tcur", "length"]
     
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -29,8 +29,8 @@ class DiMTMig:
         self.dpar = pd.DataFrame(\
             columns=["skim", "func", "param", "symmetric"]) # distribution params
         # optimisation results
-        self.optres = pd.DataFrame(columns=["attr_param", "dist_param"])
-        self.optout = pd.DataFrame(columns=["sum_geh", "nit", "nfev", "success"])
+        self.opt_params = pd.DataFrame(columns=["attr_param", "dist_param"])
+        self.opt_output = pd.DataFrame(columns=["sum_geh", "nit", "nfev", "success"])
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
@@ -40,9 +40,9 @@ class DiMTMig:
         """
         Inputs
         ======
-        - Nodes : dataframe [is_zone, name, coords, pop], index: id
+        - Nodes : dataframe [is_zone, name, pop], index: id
         - Link types : dataframe [name, v0, qmax, a, b], index: id
-        - Links : dataframe [id, type, name, l, count], index: id_node_pair
+        - Links : dataframe [id, type, name, length, count], index: id_node_pair
         """
         self.df_nodes = nodes.copy()
         self._verify_nodes()
@@ -63,7 +63,7 @@ class DiMTMig:
                 
     def _verify_nodes(self):
         """Check that key columns are present"""
-        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
+        assert np.isin(["id", "is_zone", "name", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
@@ -78,7 +78,7 @@ class DiMTMig:
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
-        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
+        assert np.isin(["id", "type", "name", "length", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
     
@@ -101,7 +101,7 @@ class DiMTMig:
         # sort node order
         
         # assign empty attributes
-        self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
+        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
@@ -116,21 +116,21 @@ class DiMTMig:
         and assign to the graph G"""
         self.df_links["tcur"] = self.df_links["t0"] \
                                 *(1.0 + self.df_links["a"]\
-                                * (self.df_links["q"]/self.df_links["qmax"])\
+                                * (self.df_links["q"] / self.df_links["qmax"])\
                                 **self.df_links["b"])
         
-        self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
+        self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
        
         # assign to the graph
         self.G.es["tcur"] = self.df_links["tcur"].values
         self.G.es["vcur"] = self.df_links["vcur"].values
 
     def _fill_graph(self):
-        """Fill the graph with read nodes and links"""
+        """Fill the graph with read-in nodes and links"""
     #############################################################
     # K: making sure the graph is empty (needed when self.read_data is run
     # multiple times in the code, but MTM does not initialise at every run)
-        if len(self.G.vs)>0:
+        if len(self.G.vs) > 0:
             self.G = ig.Graph(directed=True)
         
     #adding vertices
@@ -175,13 +175,13 @@ class DiMTMig:
     def compute_skims(self, diagonal="density", density=1000.0):
         """
         Compute skim matrices, choose from:
-        - "l" : distance between zones
+        - "length" : distance between zones
         - "t0" : free flow travel time between zones
         - "tcur" : traffic travel time between zones
         """
         kw = {"diagonal": diagonal, "density": density}
         
-        self._compute_skim_basic("l", **kw)
+        self._compute_skim_basic("length", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
             
@@ -361,6 +361,9 @@ class DiMTMig:
                 self.df_links["q"] = self.G.es["q"]
                 self.compute_tcur_links() # update current time and speed
 
+        self._geh()
+        self._var_geh()
+
 
     # =====
     # Optimisation
@@ -399,14 +402,23 @@ class DiMTMig:
         print("Time: %.2f s" % (toc - tic))
     
         for m, n in enumerate(self.dstrat.index):
-            self.optres.loc[n] = [res.x[2*m], res.x[2*m+1]]
+            self.opt_params.loc[n] = [res.x[2*m], res.x[2*m+1]]
             
-        self.optout.loc[1] = [res.fun, res.nit, res.nfev, res.success]
+        self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
     
 
-    def geh(self):
-        """Compute the GEH of each link with a measurement"""
-        pass
+    def _geh(self):
+        """Compute the GEH error of each link with a measurement"""
+        self.df_links["geh"] = \
+            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0)
+
+
+    def _var_geh(self):
+        """Compute GEH statistic variance, without the square root"""
+        self.df_links["var_geh"] = \
+            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0
 
     
     def _obj_function(self, z, imp, ws=[50, 50]):
@@ -441,9 +453,8 @@ class DiMTMig:
                 (np.logical_not(np.isnan(self.df_links["count"]))),\
                 (self.df_links["count"] != 0))]
     
-        gehs = sqrt(2*(relevant["q"].values - relevant["count"].values)**2/\
-                (relevant["q"].values + relevant["count"].values)) \
-                / sqrt(10.0)
+        gehs = sqrt(2.0 * (relevant["q"].values - relevant["count"].values)**2 \
+            / (relevant["q"].values + relevant["count"].values)) / sqrt(10.0)
     
 #     reg = alpha*(\
 #             self.dmats["all"].multiply(self.skims["t0"]).sum().sum()\
