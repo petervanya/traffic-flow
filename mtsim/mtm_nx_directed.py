@@ -8,7 +8,7 @@ class DiMTMnx:
     """Macroscopic transport modelling class"""
     # global varialbles
     assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "l"]
+    basic_skim_kinds = ["t0", "tcur", "length"]
     
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -54,7 +54,7 @@ class DiMTMnx:
     def _verify_nodes(self):
         """Verify columns 
         ADD INDEX"""
-        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
+        assert np.isin(["id", "is_zone", "name", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
@@ -67,7 +67,7 @@ class DiMTMnx:
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
-        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
+        assert np.isin(["id", "type", "name", "length", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
     
@@ -89,7 +89,7 @@ class DiMTMnx:
         # sort node order
         
         # assign empty attributes
-        self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
+        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
@@ -104,7 +104,7 @@ class DiMTMnx:
         self.df_links["tcur"] = self.df_links["t0"] * \
             (1.0 + self.df_links["a"] * \
             (self.df_links["q"] / self.df_links["qmax"])**self.df_links["b"])
-        self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
+        self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
         
         # assign to the graph
         nx.set_edge_attributes(self.G, self.df_links["tcur"], "tcur")
@@ -153,7 +153,7 @@ class DiMTMnx:
         - TC : traffic travel time between zones
         """
         kw = {"diagonal": diagonal, "density": density}
-        self._compute_skim_basic("l", **kw)
+        self._compute_skim_basic("length", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
                    
@@ -314,6 +314,27 @@ class DiMTMnx:
 
                 self.df_links["q"] = self.df_q["q"]
                 self.compute_tcur_links() # update current time and speed
+
+        self._geh()
+        self._var_geh()
+
+
+    def _geh(self):
+        """Compute the GEH error of each link with a measurement"""
+        self.df_links["geh"] = \
+            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0)
+
+
+    def _var_geh(self):
+        """Compute GEH statistic variance, without the square root"""
+        self.df_links["var_geh"] = \
+            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0
+
+    
+
+
 
 
 
