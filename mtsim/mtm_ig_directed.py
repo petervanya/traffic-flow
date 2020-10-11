@@ -374,6 +374,40 @@ class DiMTMig:
         self._geh()
         self._var_geh()
 
+    
+    # =====
+    # Error-measuring tools
+    # =====
+    def _geh(self):
+        """Compute the GEH error of each link with a measurement"""
+        self.df_links["geh"] = \
+            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0)
+
+
+    def _geh_vehkm(self):
+        """Compute GEH adjusted for section lengths"""
+        l = self.df_links["length"]
+        self.df_links["geh"] = \
+            sqrt(2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
+            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0)
+            
+
+    def _var_geh(self):
+        """Compute GEH as a variance without the square root"""
+        self.df_links["var_geh"] = \
+            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
+            (self.df_links["q"] + self.df_links["count"]) / 10.0
+
+    
+    def _var_geh_vehkm(self):
+        """Compute GEH as a variance without the square root and 
+        adjusted for section lengths"""
+        l = self.df_links["length"]
+        self.df_links["var_geh"] = \
+            2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
+            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0
+            
 
     # =====
     # Optimisation
@@ -416,37 +450,6 @@ class DiMTMig:
             
         self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
     
-
-    def _geh(self):
-        """Compute the GEH error of each link with a measurement"""
-        self.df_links["geh"] = \
-            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0)
-
-
-    def _geh_vehkm(self):
-        """Compute GEH adjusted for section lengths"""
-        l = self.df_links["length"]
-        self.df_links["geh"] = \
-            sqrt(2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
-            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0)
-            
-
-    def _var_geh(self):
-        """Compute GEH as a variance without the square root"""
-        self.df_links["var_geh"] = \
-            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0
-
-    
-    def _var_geh_vehkm(self):
-        """Compute GEH as a variance without the square root and 
-        adjusted for section lengths"""
-        l = self.df_links["length"]
-        self.df_links["var_geh"] = \
-            2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
-            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0
-            
 
     def _obj_function(self, z, imp, ws=[50, 50]):
         """
