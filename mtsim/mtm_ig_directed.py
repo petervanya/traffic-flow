@@ -13,6 +13,7 @@ class DiMTMig:
     # global varialbles
     assignment_kinds = ["incremental"]
     basic_skim_kinds = ["t0", "tcur", "length"]
+    dist_funcs = ["exp", "poly", "power"]
     
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -41,7 +42,7 @@ class DiMTMig:
         Inputs
         ======
         - Nodes : dataframe [is_zone, name, pop], index: id
-        - Link types : dataframe [name, v0, qmax, a, b], index: id
+        - Link types : dataframe [type, type_name, v0, qmax, a, b]
         - Links : dataframe [id, type, name, length, count], index: id_node_pair
         """
         self.df_nodes = nodes.copy()
@@ -70,7 +71,7 @@ class DiMTMig:
     
     def _verify_lt(self):
         """Verify columns"""
-        assert np.isin(["id", "v0", "qmax", "a", "b"],\
+        assert np.isin(["type", "type_name", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
@@ -91,11 +92,7 @@ class DiMTMig:
         [t0, q, tcur, vcur]
         """
         # merge with link types
-        # RENAME ID_LT to ID first
-        self.df_links = self.df_links.merge(\
-                self.df_lt.drop(["name"], 1), how="left", \
-                left_on="type", right_on="id", suffixes=("", "_dum"))\
-            .drop("id_dum", 1)
+        self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
         
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
         # sort node order
@@ -124,6 +121,7 @@ class DiMTMig:
         # assign to the graph
         self.G.es["tcur"] = self.df_links["tcur"].values
         self.G.es["vcur"] = self.df_links["vcur"].values
+
 
     def _fill_graph(self):
         """Fill the graph with read-in nodes and links"""
@@ -234,15 +232,24 @@ class DiMTMig:
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
+        assert func in self.dist_funcs, \
+            "Choose distribution function from %s" % self.dist_funcs
+        if func == "power":
+            try:
+                iter(beta)
+            except TypeError:
+                print("Power law parameters should be in a list")
+            assert len(beta) == 2, "Power law function has two parameters."
+
         if func == "exp":
-            return np.exp(-beta*C)
+            return np.exp(beta * C)
         elif func == "poly":
-            return C**(-beta)
-        else:
-            raise ValueError("Function should be exp or poly.")
-        
-    # K: added symmetry option for e.g. work demand stratum
-    def distribute(self, ds, C, func, param, Nit=10, sym=False):
+            return C**beta
+        elif func == "power":
+            return (C + beta[1])**beta[0]
+    
+
+    def distribute(self, ds, C, func, param, Nit=10, symm=False):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
@@ -250,25 +257,28 @@ class DiMTMig:
         Inputs
         ======
         - ds : demand stratum
-        - C : cost function as skim matrix, t0, tcur, l or utility
-        - func : distribution function, exp or poly
+        - C : cost function as skim matrix, t0, tcur, length or utility
+        - func : distribution function
         - param : parameter of the distribution function
         - Nit : number of iterations
-        - sym : if True, makes the demand matrix symmetric; default is False
+        - symm : symmetrise the demand matrix
         """
         assert ds in self.dstrat.index,\
             "%s not found in demand strata." % ds
         assert C in self.skims.keys(),\
             "Cost %s not found among skim matrices" % C
-        assert func in ["exp", "poly"], \
-            "Choose exp or poly function."
-        assert param >= 0.0, "Parameter should be >= 0."
+        assert func in self.dist_funcs, \
+            "Choose function from %s." % self.dist_funcs
         assert Nit > 0, "Number of iterations should be positive."
-        assert np.logical_or((sym == False), (sym == True)),\
+        assert symm in [True, False],\
              "Choose boolean value for the symmetry of the matrix."
+        if func == "power":
+            assert param[0] <= 0.0, "Parameter of decay should be <= 0."
+        else:
+            assert param <= 0.0, "Parameter of decay should be <= 0."
         
         # define set of distribution parameters
-        self.dpar.loc[ds] = [C, func, param, sym]
+        self.dpar.loc[ds] = [C, func, param, symm]
         
         O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
         D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
@@ -288,7 +298,7 @@ class DiMTMig:
         # compute final mean average errors
         self.dist_errs = {"O": (abs(T.sum(1) - O)).sum() / len(T) / self.Nz,\
                          "D": (abs(T.sum(0) - D)).sum() / len(T) / self.Nz}
-        if sym:
+        if symm:
             T = (T + T.T) / 2.0
         self.dmats[ds] = pd.DataFrame(T, columns=self.df_zones.index, \
                               index=self.df_zones.index)
@@ -368,7 +378,7 @@ class DiMTMig:
     # =====
     # Optimisation
     # =====
-    def optimise(self, Nit, K_low=1e-6, K_up=3.1, c_low=1e-6, c_up=0.11, \
+    def optimise(self, Nit, K_low=1e-6, K_up=3.0, c_low=-1.0, c_up=-1e-6, \
         imp="tcur", seed=1101, ws=[50, 50]):
         """
         Optimisation of model parameters.
@@ -444,7 +454,7 @@ class DiMTMig:
         # trip distribution
         for m, n in enumerate(self.dpar.index):
             self.distribute(n, self.dpar["skim"][m], self.dpar["func"][m], \
-                z[2*m+1], sym=self.dpar["symmetric"][m])
+                z[2*m+1], symm=self.dpar["symmetric"][m])
         
         # assignment
         self.assign(imp=imp, ws=ws)
