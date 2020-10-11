@@ -52,15 +52,15 @@ mtm.read_data(df_nodes, df_link_types, df_links)
 
 # trip generation, create a demand stratum
 # 'pop' is a zone attribute containing population
-mtm.generate("all", "pop", "pop", 0.5)
+mtm.generate("stratum_1", "pop", "pop", 0.5)
 
 # calculate skim (resistance) matrices for distance and time
 mtm.compute_skims()
 
-# trip distribution of demand stratum 'all' using the gravity model
+# trip distribution of demand stratum 'stratum_1' using the gravity model
 # distribute the trips exponentially with parameter 0.02 
 # disutility defined as time 'tcur' computed above as a skim matrix
-mtm.distribute("all", "tcur", "exp", 0.02)
+mtm.distribute("stratum_1", "tcur", "exp", 0.02)
 
 # assign vehicle flows to the network
 mtm.assign("tcur")
@@ -77,9 +77,9 @@ from mtsim import MTMnx
 
 mtm = MTMnx()
 mtm.read_data(df_nodes, df_link_types, df_links)
-mtm.generate("all", "pop", "pop", 0.5)
+mtm.generate("stratum_1", "pop", "pop", 0.5)
 mtm.compute_skims()
-mtm.distribute("all", "tcur", "exp", 0.02)
+mtm.distribute("stratum_1", "tcur", "exp", 0.02)
 
 # optimise using 10 iterations
 mtm.optimise(10)
