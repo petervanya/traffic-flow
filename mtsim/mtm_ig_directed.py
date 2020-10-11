@@ -424,13 +424,30 @@ class DiMTMig:
             (self.df_links["q"] + self.df_links["count"]) / 10.0)
 
 
+    def _geh_vehkm(self):
+        """Compute GEH adjusted for section lengths"""
+        l = self.df_links["length"]
+        self.df_links["geh"] = \
+            sqrt(2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
+            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0)
+            
+
     def _var_geh(self):
-        """Compute GEH statistic variance, without the square root"""
+        """Compute GEH as a variance without the square root"""
         self.df_links["var_geh"] = \
             2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
             (self.df_links["q"] + self.df_links["count"]) / 10.0
 
     
+    def _var_geh_vehkm(self):
+        """Compute GEH as a variance without the square root and 
+        adjusted for section lengths"""
+        l = self.df_links["length"]
+        self.df_links["var_geh"] = \
+            2.0 * (self.df_links["q"]*l - self.df_links["count"]*l)**2 \
+            / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0
+            
+
     def _obj_function(self, z, imp, ws=[50, 50]):
         """
         The sum of all GEH differences between traffic counts and modelled
