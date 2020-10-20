@@ -374,49 +374,10 @@ class DiMTMig:
         self._geh()
         self._var_geh()
 
-
-    # =====
-    # Optimisation
-    # =====
-    def optimise(self, Nit, K_low=1e-6, K_up=3.0, c_low=-1.0, c_up=-1e-6, \
-        imp="tcur", seed=1101, ws=[50, 50]):
-        """
-        Optimisation of model parameters.
-
-        Input
-        =====
-        - Nit : number of iterations
-        - K_low : lower bound on trip generation parameter
-        - K_up : upper bound on trip generation parameter
-        - c_low : lower bound on trip distribution parameter
-        - c_up : upper bound on trip distribution parameter
-        - imp : assignment impedance (t0, tcur, l)
-        - seed : random seed
-        - ws : weights in incremental assignment
-        """
-        from scipy.optimize import dual_annealing
-        assert len(self.dstrat) > 0, "No demand strata defined"
-        # DEFINE INITIAL VALUES
-
-        optargs = (imp, ws)
-        bounds = [] # vector of bounds
-        for m in self.dstrat.index:
-            bounds = bounds + [(K_low, K_up), (c_low, c_up)]
-        
-        tic = time.time()
-        res = dual_annealing(self._obj_function, args=optargs, bounds=bounds, \
-            seed=seed, maxiter=Nit)
-        toc = time.time()
-        print("Optimisation terminated. Success: %s" % res.success)
-        print("Resulting parameters: %s" % res.x)
-        print("Time: %.2f s" % (toc - tic))
     
-        for m, n in enumerate(self.dstrat.index):
-            self.opt_params.loc[n] = [res.x[2*m], res.x[2*m+1]]
-            
-        self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
-    
-
+    # =====
+    # Error-measuring tools
+    # =====
     def _geh(self):
         """Compute the GEH error of each link with a measurement"""
         self.df_links["geh"] = \
@@ -448,6 +409,80 @@ class DiMTMig:
             / (self.df_links["q"]*l + self.df_links["count"]*l) / 10.0
             
 
+    # =====
+    # Optimisation
+    # =====
+    def optimise(self, Nit, optfun="dual_annealing", x0=None, bounds=None, \
+        imp="tcur", seed=1101, ws=[50, 50]):
+        """
+        Global optimisation of model parameters.
+
+        Input
+        =====
+        - Nit : number of iterations
+        - optfun : optimisation function from Scipy
+        - x0 : initial estimates of the parameters
+        - imp : assignment impedance (t0, tcur, l)
+        - seed : random seed
+        - ws : weights in incremental assignment
+        """
+        # basic checks
+        assert len(self.dstrat) > 0, \
+            "No demand strata defined, need to run trip generation first."
+        assert optfun in ["dual_annealing", "basinhopping"], \
+            "Choose functions from: dual_annealing, basinhopping."
+
+        # compute the number of optimisation parameters
+        N_par = 0
+        for ds in self.dstrat.index:
+            par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
+            N_par += par + 1
+
+        # check the structure of initial values if required
+        if optfun in ["basinhopping"]:
+            assert x0 != None and len(x0) == N_par, \
+                "Number of initial values must correspond\
+                to the number of trip generation and distribution parameters\
+                (%i)." % N_par
+
+        # compose the list of bounds if required
+        if optfun in ["dual_annealing"]:
+            if bounds == None:
+                bounds = []
+                for m in self.dstrat.index:
+                    bounds += [(1e-6, 3.0)]
+                    par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
+                    if par == 1: # exp, poly
+                        bounds += [(-3.0, -1e-6)]
+                    else: # power law
+                        bounds += [(0.0, 50.0), (-5.0, -1e-6)]
+            else:
+                assert len(bounds) == N_par, "Incorrect number of bounds."
+        
+        optargs = (imp, ws)
+
+        tic = time.time()
+        if optfun == "dual_annealing":
+            from scipy.optimize import dual_annealing
+            res = dual_annealing(self._obj_function, args=optargs, bounds=bounds, \
+                seed=seed, maxiter=Nit)
+        elif optfun == "basinhopping":
+#            from scipy.optimize import basinhopping
+#            res = basinhopping(self._obj_function, x0=x0, niter=Nit, \
+#                minimizer_kwargs=optargs, bounds=bounds, seed=seed)
+            raise NotImplementedError
+        toc = time.time()
+            
+        print("Optimisation terminated. Success: %s" % res.success)
+        print("Resulting parameters: %s" % res.x)
+        print("Time: %.2f s" % (toc - tic))
+    
+        for m, n in enumerate(self.dstrat.index):
+            self.opt_params.loc[n] = [res.x[2*m], res.x[2*m+1]]
+            
+        self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
+    
+
     def _obj_function(self, z, imp, ws=[50, 50]):
         """
         The sum of all GEH differences between traffic counts and modelled
@@ -461,7 +496,7 @@ class DiMTMig:
         - imp : impedance kind (t0, tcur, l)
         - ws : assignment weights
         """
-        # CATCH ERROR IF DEMAND STRATA NOT DEFINED
+        # basic checks
         assert len(self.dstrat) > 0, "No demand strata defined"
 
         # trip generation
