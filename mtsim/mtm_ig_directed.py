@@ -93,9 +93,7 @@ class DiMTMig:
         """
         # merge with link types
         self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
-        
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
-        # sort node order
         
         # assign empty attributes
         self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
@@ -170,30 +168,34 @@ class DiMTMig:
     # =====
     # Skim matrices
     # =====
-    def compute_skims(self, diagonal="density", density=1000.0):
+    def compute_skims(self, diagonal="density", density=1000.0, \
+        diagonal_param=0.5):
         """
         Compute skim matrices, choose from:
         - "length" : distance between zones
         - "t0" : free flow travel time between zones
         - "tcur" : traffic travel time between zones
         """
-        kw = {"diagonal": diagonal, "density": density}
+        kw = {"diagonal": diagonal, "density": density, \
+            "diagonal_param": diagonal_param}
         
         self._compute_skim_basic("length", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
             
             
-    def _compute_skim_basic(self, kind, diagonal="density", density=1000.0):
+    def _compute_skim_basic(self, kind, diagonal="density", \
+        density=1000.0, diagonal_param=0.5):
         """
         General method to compute skim matrices from basic quantities
         (free flow time, current time or distance).
         
         Inputs
         ======
-        - kind : eg t0, tcur, l
+        - kind : eg t0, tcur, length
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
+        - diagonal_param : parameter to scale the diagonal
         """
         assert kind in self.basic_skim_kinds, \
             "Choose kind among %s." % self.basic_skim_kinds
@@ -210,7 +212,7 @@ class DiMTMig:
         # compute diagonal based on distance
         if diagonal == "density":
             np.fill_diagonal(self.skims[kind].values, \
-            np.sqrt(self.df_zones["pop"].values / density) * 0.5)
+            np.sqrt(self.df_zones["pop"].values / density) * diagonal_param)
         else:
             raise NotImplementedError("Only 'density'-based diagonal available.")
             
