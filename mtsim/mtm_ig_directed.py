@@ -251,7 +251,7 @@ class DiMTMig:
             return (C + beta[1])**beta[0]
     
 
-    def distribute(self, ds, C, func, param, Nit=10, symm=False):
+    def distribute(self, ds, C, func, param, Nit=10, symm=True):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
