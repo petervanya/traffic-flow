@@ -253,7 +253,8 @@ class DiMTMig:
             return (C + beta[1])**beta[0]
     
 
-    def distribute(self, ds, C, func, param, Nit=10, symm=True):
+    def distribute(self, ds, C, func, param, Nit=10, balancing="production", \
+        symm=True):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
@@ -265,17 +266,20 @@ class DiMTMig:
         - func : distribution function
         - param : parameter of the distribution function
         - Nit : number of iterations
+        - balancing : normalisation of trips wrt production or attraction
         - symm : symmetrise the demand matrix
         """
         assert ds in self.dstrat.index,\
             "%s not found in demand strata." % ds
         assert C in self.skims.keys(),\
             "Cost %s not found among skim matrices" % C
-        assert func in self.dist_funcs, \
+        assert func in self.dist_funcs,\
             "Choose function from %s." % self.dist_funcs
         assert Nit > 0, "Number of iterations should be positive."
+        assert balancing in ["production", "attraction"],\
+            "Incorrect choice of balancing."
         assert symm in [True, False],\
-             "Choose boolean value for the symmetry of the matrix."
+             "Choose True/False for matrix symmetrisation."
         if func == "power":
             assert param[0] <= 0.0, "Parameter of decay should be <= 0."
         else:
@@ -284,10 +288,18 @@ class DiMTMig:
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
         
-        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
-        D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
+#        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
+#        D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
+#            self.dstrat.loc[ds, "param"]
+
+        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy() * \
             self.dstrat.loc[ds, "param"]
-        O *= D.sum() / O.sum() # normalisation wrt attraction
+        D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy()
+
+        if balancing == "production":
+            D *= O.sum() / D.sum() # normalisation wrt production
+        elif balancing == "attraction":
+            O *= D.sum() / O.sum() # normalisation wrt attraction
         
         a, b = np.ones_like(O), np.ones_like(D)
         T = np.zeros((self.Nz, self.Nz))
