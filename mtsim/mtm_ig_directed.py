@@ -155,8 +155,8 @@ class DiMTMig:
         ======
         - prod : productivity column
         - attr : attractivity column
-        - param : parameter with which to multiply the productivity
-            (mean number of trips per day, fraction of the population)
+        - param : mobility parameter (mean number of trips per day 
+            or fraction of the population)
         """
         assert hasattr(self, "df_nodes"), \
             "No input dataframe of nodes found, did you read it?"
@@ -191,13 +191,27 @@ class DiMTMig:
         """
         General method to compute skim matrices from basic quantities
         (free flow time, current time or distance).
+        For the matrix diagonal, "density" chosen, compute zone area from
+        the chosen population density and then the distance.
+        If "area" chosen, use the "area" zone attribute and compute distance.
+        In both cases, scale the distance by the `"diagonal_param"`.
+        For time-based skim matrices, convert distance to time via intrazonal
+        speed `"v_intra"`.
         
-        Inputs
-        ======
-        - kind : eg t0, tcur, length
-        - diagonal : way to compute the matrix diagonal
-        - density : average density per zone
-        - diagonal_param : parameter to scale the diagonal
+        Parameters
+        ----------
+        - kind : string
+            Choose from `"t0"`, `"tcur"`, `"length"`
+        - diagonal : string, optional
+            A flag to determine the way to compute ompute the matrix diagonal.
+            If `"density"` chosen, zone area is computed from the population 
+            density supplied in the `density` keyword and from it the distance 
+            as a square root. Choice `"area"` computes distance as a square 
+            root of the zone attribute "area".
+        - diagonal_param : float, optional
+            Parameter to scale the distance computed from the area
+        - density : float, optional
+            Average population density per zone
         """
         assert kind in self.basic_skim_kinds, \
             "Choose kind among %s." % self.basic_skim_kinds
@@ -214,9 +228,13 @@ class DiMTMig:
         # compute diagonal based on distance
         if diagonal == "density":
             np.fill_diagonal(self.skims[kind].values, \
-            np.sqrt(self.df_zones["pop"].values / density) * diagonal_param)
+                np.sqrt(self.df_zones["pop"].values / density) * diagonal_param)
         else:
-            raise NotImplementedError("Only 'density'-based diagonal available.")
+            assert "area" in self.df_zones.columns,\
+                "'area' not found among zone attributes."
+            np.fill_diagonal(self.skims[kind].values, \
+                np.sqrt(self.df_zones["area"].values) * diagonal_param)
+#            raise NotImplementedError("Only 'density'-based diagonal available.")
             
         # adjust time-related skims
         if kind in ["t0", "tcur"]:
@@ -288,10 +306,6 @@ class DiMTMig:
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
         
-#        O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
-#        D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
-#            self.dstrat.loc[ds, "param"]
-
         O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy() * \
             self.dstrat.loc[ds, "param"]
         D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy()
