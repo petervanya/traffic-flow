@@ -158,6 +158,8 @@ class DiMTMig:
         - param : parameter with which to multiply the productivity
             (mean number of trips per day, fraction of the population)
         """
+        assert hasattr(self, "df_nodes"), \
+            "No input dataframe of nodes found, did you read it?"
         assert prod in self.df_nodes.columns, \
             "Production attribute not found in node columns."
         assert attr in self.df_nodes.columns, \
