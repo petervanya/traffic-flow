@@ -166,9 +166,9 @@ class DiMTMig:
             "Attraction attribute not found in node columns."
 
         if (self.df_zones[prod] < 1.0).any():
-            print("Warning: zone attraction '%s' contains zeros." % prod)
+            print("Warning: Zone attraction '%s' contains zeros." % prod)
         if (self.df_zones[attr] < 1.0).any():
-            print("Warning: zone production '%s' contains zeros." % attr)
+            print("Warning: Zone production '%s' contains zeros." % attr)
         
         
         self.dstrat.loc[name] = [prod, attr, param]
@@ -308,10 +308,10 @@ class DiMTMig:
             "Incorrect choice of balancing."
         assert symm in [True, False],\
              "Choose True/False for matrix symmetrisation."
-#        if func == "power":
-#            assert param[0] <= 0.0, "Parameter of decay should be <= 0."
-#        else:
-#            assert param <= 0.0, "Parameter of decay should be <= 0."
+        if func == "power" and param[0] >= 0.0:
+            print("Warning: Parameter of decay should be < 0.")
+        elif func != "power" and param >= 0.0:
+            print("Warning: Parameter of decay should be < 0.")
         
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
@@ -334,6 +334,8 @@ class DiMTMig:
             a = O / T.sum(1)
             T = T * np.outer(a, b)
             b = D / T.sum(0)
+            if np.isnan(T).any():
+                print("Warning: nan's in OD matrix in iteration %i." % i)
 
         # compute final mean average errors
         self.dist_errs = {"O": (abs(T.sum(1) - O)).sum() / len(T) / self.Nz,\
