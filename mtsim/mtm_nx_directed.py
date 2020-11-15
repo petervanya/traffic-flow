@@ -60,7 +60,7 @@ class DiMTMnx:
         
     def _verify_lt(self):
         """Verify columns"""
-        assert np.isin(["id", "v0", "qmax", "a", "b"],\
+        assert np.isin(["type", "type_name", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
@@ -79,14 +79,8 @@ class DiMTMnx:
         [t0, q, tcur, vcur]
         """
         # merge with link types
-        # RENAME ID_LT to ID first
-        self.df_links = self.df_links.merge(\
-                self.df_lt.drop(["name"], 1), how="left", \
-                left_on="type", right_on="id", suffixes=("", "_dum"))\
-            .drop("id_dum", 1)
-        
+        self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
-        # sort node order
         
         # assign empty attributes
         self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
@@ -201,9 +195,9 @@ class DiMTMnx:
     # =====
     def dist_func(self, func, C, beta):
         if func == "exp":
-            return np.exp(-beta*C)
+            return np.exp(beta*C)
         elif func == "poly":
-            return C**(-beta)
+            return C**(beta)
         else:
             raise ValueError("Function should be exp or poly.")
         
@@ -226,7 +220,7 @@ class DiMTMnx:
             "Cost %s not found among skim matrices" % C
         assert func in ["exp", "poly"], \
             "Choose exp or poly function."
-        assert param >= 0.0, "Parameter should be >= 0."
+        assert param <= 0.0, "Parameter should be <= 0."
         assert Nit > 0, "Number of iterations should be positive."
         
         # define set of distribution parameters
@@ -259,7 +253,7 @@ class DiMTMnx:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", weights=[50, 50]):
+    def assign(self, imp, kind="incremental", ws=[50, 50]):
         """
         Perform assignment of traffic to the network.
         Use only one transport system here.
@@ -275,7 +269,7 @@ class DiMTMnx:
         - imp : impedance (link attribute) for path search 
             that is computed as a skim matrix
         - kind : type of assignment
-        - weights : assignment weights
+        - ws : assignment weights
         """
         assert kind in self.assignment_kinds, \
             "Assignment kind not available, choose from %s" % \
@@ -284,8 +278,8 @@ class DiMTMnx:
         assert imp in self.skims.keys(), \
             "Impedance '%s' not defined." % imp
             
-        weights = np.array(weights)
-        weights = weights / weights.sum() # normalise weights
+        ws = np.array(ws)
+        ws = ws / ws.sum() # normalise weights
         
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
@@ -295,7 +289,7 @@ class DiMTMnx:
         self.df_links["q"] = 0.0
         
         if kind == "incremental":
-            for wi, w in enumerate(weights):
+            for wi, w in enumerate(ws):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi+1, w))
                     
