@@ -246,6 +246,10 @@ class DiMTMig:
         if kind in ["t0", "tcur"]:
             np.fill_diagonal(self.skims[kind].values, \
                 self.skims[kind].values.diagonal() / self.v_intra * 60.0)
+
+        # check for nan's
+        if self.skims[kind].isna().values.any():
+            print("Warning: nan's in skim matrix '%s'.")
               
         
     def compute_skim_utility(self, name, params):
