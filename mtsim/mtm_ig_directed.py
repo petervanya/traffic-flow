@@ -67,8 +67,8 @@ class DiMTMig:
         assert np.isin(["id", "is_zone", "name", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
-        
-    
+
+
     def _verify_lt(self):
         """Verify columns"""
         assert np.isin(["type", "type_name", "v0", "qmax", "a", "b"],\
@@ -152,11 +152,11 @@ class DiMTMig:
         Apply the method separately for each demand stratum.
         
         Inputs
-        ======
-        - prod : productivity column
-        - attr : attractivity column
-        - param : mobility parameter (mean number of trips per day 
-            or fraction of the population)
+        ------
+        - prod : production zone attribute
+        - attr : attraction zone attribute
+        - param : mobility parameter, mean number of trips per day weighted
+            by the fraction of the population making the trips
         """
         assert hasattr(self, "df_nodes"), \
             "No input dataframe of nodes found, did you read it?"
@@ -164,6 +164,12 @@ class DiMTMig:
             "Production attribute not found in node columns."
         assert attr in self.df_nodes.columns, \
             "Attraction attribute not found in node columns."
+
+        if (self.df_zones[prod] < 1.0).any():
+            print("Warning: zone attraction '%s' contains zeros." % prod)
+        if (self.df_zones[attr] < 1.0).any():
+            print("Warning: zone production '%s' contains zeros." % attr)
+        
         
         self.dstrat.loc[name] = [prod, attr, param]
     
