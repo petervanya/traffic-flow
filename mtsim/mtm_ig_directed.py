@@ -247,9 +247,10 @@ class DiMTMig:
             np.fill_diagonal(self.skims[kind].values, \
                 self.skims[kind].values.diagonal() / self.v_intra * 60.0)
 
-        # check for nan's
-        if self.skims[kind].isna().values.any():
-            print("Warning: nan's in skim matrix '%s'.")
+        # check for nan's or inf's
+        if self.skims[kind].isin([np.nan, np.inf, -np.inf]).values.any():
+            print("Warning: nan's in skim matrix '%s', filling." % kind)
+            self.skims[kind].replace([np.inf, -np.inf, np.nan], 1e6, inplace=True)
               
         
     def compute_skim_utility(self, name, params):
