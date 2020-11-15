@@ -298,10 +298,10 @@ class DiMTMig:
             "Incorrect choice of balancing."
         assert symm in [True, False],\
              "Choose True/False for matrix symmetrisation."
-        if func == "power":
-            assert param[0] <= 0.0, "Parameter of decay should be <= 0."
-        else:
-            assert param <= 0.0, "Parameter of decay should be <= 0."
+#        if func == "power":
+#            assert param[0] <= 0.0, "Parameter of decay should be <= 0."
+#        else:
+#            assert param <= 0.0, "Parameter of decay should be <= 0."
         
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
@@ -554,6 +554,19 @@ class DiMTMig:
 #     vals = np.append(vals, suma)
     
         return np.sum(gehs) #+ reg    
+
+
+    # =====
+    # Processing
+    # =====
+    def compute_mean_trip_length(self, ds):
+        """Compute the mean trip length for a given demand stratum"""
+        assert ds in self.dstrat.index, "Demand stratum not available."
+        return (self.skims["length"] * self.dmats[ds]).sum().sum() / \
+            self.dmats[ds].sum().sum()
+
+
+
 
 
 
