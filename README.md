@@ -35,17 +35,17 @@ Several examples were created:
 
 Loading an example network:
 ```python
-from mtsim.sample_networks import load_network_1
+from mtsim.sample_networks import load_network_2
 
-df_nodes, df_link_types, df_links = load_network_1()
+df_nodes, df_link_types, df_links = load_network_2()
 ```
 
 
 Running the simulation:
 ```python
-from mtsim import MTMnx
+from mtsim import MTM
 
-mtm = MTMnx()
+mtm = MTM()
 
 # read the road network data
 mtm.read_data(df_nodes, df_link_types, df_links)
@@ -60,7 +60,7 @@ mtm.compute_skims()
 # trip distribution of demand stratum 'stratum_1' using the gravity model
 # distribute the trips exponentially with parameter 0.02 
 # disutility defined as time 'tcur' computed above as a skim matrix
-mtm.distribute("stratum_1", "tcur", "exp", 0.02)
+mtm.distribute("stratum_1", "tcur", "exp", -0.02)
 
 # assign vehicle flows to the network
 mtm.assign("tcur")
@@ -73,13 +73,13 @@ measured traffic flows via the [GEH function](https://en.wikipedia.org/wiki/GEH_
 
 Having done the above described cycle, run the following:
 ```python
-from mtsim import MTMnx
+from mtsim import MTM
 
-mtm = MTMnx()
+mtm = MTM()
 mtm.read_data(df_nodes, df_link_types, df_links)
 mtm.generate("stratum_1", "pop", "pop", 0.5)
 mtm.compute_skims()
-mtm.distribute("stratum_1", "tcur", "exp", 0.02)
+mtm.distribute("stratum_1", "tcur", "exp", -0.02)
 
 # optimise using 10 iterations
 mtm.optimise(10)
