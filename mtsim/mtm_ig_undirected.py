@@ -1,14 +1,18 @@
+"""
+Author: Katarina Simkova and Peter Vanya
+"""
 import numpy as np
 import pandas as pd
 from numpy import sqrt, exp
-import networkx as nx
+import igraph as ig
 
 
-class DiMTMnx:
-    """Macroscopic transport modelling class"""
+class MTM:
+    """Macroscopic transport modelling class.
+    Using iGraph library and based on undirected graphs."""
     # global varialbles
     assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "length"]
+    basic_skim_kinds = ["t0", "tcur", "l"]
     
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -17,7 +21,7 @@ class DiMTMnx:
         - v_intra : intrazonal speed in kmh
         - verbose : level of printing information
         """
-        self.G = nx.DiGraph() # the graph structure
+        self.G = ig.Graph()
         self.skims = {} # skim matrices
         self.dmats = {} # demand matrices
         self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"]) # demand strata
@@ -26,7 +30,8 @@ class DiMTMnx:
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
-           
+        
+        
     def read_data(self, nodes, link_types, links):
         """
         Inputs
@@ -50,26 +55,29 @@ class DiMTMnx:
         self._assign_link_data()
         
         self._fill_graph()
-                  
+        
+                
     def _verify_nodes(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["id", "is_zone", "name", "pop"],\
+        """Check that key columns are present"""
+        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
+    
     def _verify_lt(self):
         """Verify columns"""
-        assert np.isin(["type", "type_name", "v0", "qmax", "a", "b"],\
+        assert np.isin(["id", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
+    
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
-        assert np.isin(["id", "type", "name", "length", "count", "node_from", "node_to"],\
+        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
+    
     
     def _assign_link_data(self):
         """
@@ -79,11 +87,17 @@ class DiMTMnx:
         [t0, q, tcur, vcur]
         """
         # merge with link types
-        self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
+        # RENAME ID_LT to ID first
+        self.df_links = self.df_links.merge(\
+                self.df_lt.drop(["name"], 1), how="left", \
+                left_on="type", right_on="id", suffixes=("", "_dum"))\
+            .drop("id_dum", 1)
+        
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
+        # sort node order
         
         # assign empty attributes
-        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
+        self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
@@ -92,27 +106,36 @@ class DiMTMnx:
         assert self.df_links["type"].isna().any() == False, \
             "Missing link types."
         
+    
     def compute_tcur_links(self):
         """Compute current travel time and speed wrt the flows
         and assign to the graph G"""
         self.df_links["tcur"] = self.df_links["t0"] * \
             (1.0 + self.df_links["a"] * \
             (self.df_links["q"] / self.df_links["qmax"])**self.df_links["b"])
-        self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
         
+        self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
         # assign to the graph
-        nx.set_edge_attributes(self.G, self.df_links["tcur"], "tcur")
-        nx.set_edge_attributes(self.G, self.df_links["vcur"], "vcur")
-
+        self.G.es["tcur"] = self.df_links["tcur"].values
+        self.G.es["vcur"] = self.df_links["vcur"].values
 
     def _fill_graph(self):
         """Fill the graph with read nodes and links"""
-        for k, v in self.df_nodes.iterrows():
-            self.G.add_node(k, **v)
-            
-        for k, v in self.df_links.iterrows():
-            self.G.add_edge(k[0], k[1], **v)
-            
+        # making sure the graph is empty
+        self.G = ig.Graph()
+        
+        # adding vertices
+        self.G.add_vertices(self.df_nodes.shape[0])
+        self.G.vs["id"] = self.df_nodes.index.values
+        for k, v in self.df_nodes.iteritems():
+            self.G.vs[k] = v.values
+
+        # adding edges
+        for k, _ in self.df_links.iterrows():
+            self.G.add_edges([(self.G.vs.find(id=k[0]).index,\
+                           self.G.vs.find(id=k[1]).index)])
+        for k, v in self.df_links.iteritems():
+            self.G.es[k] = v.values
             
     # =====
     # Trip generation
@@ -147,10 +170,11 @@ class DiMTMnx:
         - TC : traffic travel time between zones
         """
         kw = {"diagonal": diagonal, "density": density}
-        self._compute_skim_basic("length", **kw)
+        self._compute_skim_basic("l", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
-                   
+              
+            
     def _compute_skim_basic(self, kind, diagonal="density", density=1000.0):
         """
         General method to compute skim matrices from basic quantities
@@ -165,10 +189,12 @@ class DiMTMnx:
         assert kind in self.basic_skim_kinds, \
             "Choose kind among %s." % self.basic_skim_kinds
         
-        paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
+        paths = self.G.shortest_paths(source=self.G.vs.select(is_zone_eq=True),\
+                      target=self.G.vs.select(is_zone_eq=True), weights=kind)
         
-        self.skims[kind] = pd.DataFrame(dict(paths))\
-            .loc[self.df_zones.index, self.df_zones.index]
+        self.skims[kind] = pd.DataFrame(paths)
+        self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
+        self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
         
         # compute diagonal based on distance
         if diagonal == "density":
@@ -181,7 +207,8 @@ class DiMTMnx:
         if kind in ["t0", "tcur"]:
             np.fill_diagonal(self.skims[kind].values, \
                 self.skims[kind].values.diagonal() / self.v_intra * 60.0)
-               
+              
+        
     def compute_skim_utility(self, name, params):
         """Compute the utility skim matrix composed of several
         basic link attributes (distance or times) and their unit
@@ -195,12 +222,13 @@ class DiMTMnx:
     # =====
     def dist_func(self, func, C, beta):
         if func == "exp":
-            return np.exp(beta*C)
+            return np.exp(-beta*C)
         elif func == "poly":
-            return C**(beta)
+            return C**(-beta)
         else:
             raise ValueError("Function should be exp or poly.")
         
+    
     def distribute(self, ds, C, func, param, Nit=10):
         """
         Compute OD matrices for a given demand stratum
@@ -220,7 +248,7 @@ class DiMTMnx:
             "Cost %s not found among skim matrices" % C
         assert func in ["exp", "poly"], \
             "Choose exp or poly function."
-        assert param <= 0.0, "Parameter should be <= 0."
+        assert param >= 0.0, "Parameter should be >= 0."
         assert Nit > 0, "Number of iterations should be positive."
         
         # define set of distribution parameters
@@ -229,8 +257,7 @@ class DiMTMnx:
         O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
         D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
             self.dstrat.loc[ds, "param"]
-        #O *= D.sum() / O.sum() # normalisation wrt attraction
-        O=np.multiply(O, D.sum() / O.sum())
+        O *= D.sum() / O.sum() # normalisation wrt attraction
         
         a, b = np.ones_like(O), np.ones_like(D)
         T = np.zeros((self.Nz, self.Nz))
@@ -285,50 +312,28 @@ class DiMTMnx:
         self.DM = sum(self.dmats.values())
 
         # remove flows and reset tcur/vcur before assignment
-        nx.set_edge_attributes(self.G, 0.0, "q")
+        self.G.es["q"] = 0.0
+        self.G.es["tcur"] = self.df_links["t0"].values
+        self.G.es["vcur"] = self.df_links["v0"].values
         self.df_links["q"] = 0.0
         
         if kind == "incremental":
             for wi, w in enumerate(ws):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi+1, w))
-                    
-                paths = dict(nx.all_pairs_dijkstra_path(self.G, weight=imp))
                 
-                for i in self.df_zones.index:
-                    for j in self.df_zones.index:
-                        p = paths[i][j]
-                        dq = self.DM.loc[i, j] * w
+                vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
+
+                for i in vs_zones:
+                    p = self.G.get_shortest_paths(v=i, to=vs_zones,\
+                                            weights=imp, output="epath")
+                    dq = self.DM.loc[self.G.vs[i]["id"], :].values * w
                         
-                        for k, _ in enumerate(p[:-1]):
-                            self.G.edges[p[k], p[k+1]]["q"] += dq
-
-                self.df_q = nx.to_pandas_edgelist(self.G)\
-                    .set_index(["source", "target"])
-
-                self.df_links["q"] = self.df_q["q"]
+                    for j, _ in enumerate(dq):
+                        self.G.es[p[j]]["q"] += dq[j]
+                
+                self.df_links["q"] = self.G.es["q"]
                 self.compute_tcur_links() # update current time and speed
-
-        self._geh()
-        self._var_geh()
-
-
-    def _geh(self):
-        """Compute the GEH error of each link with a measurement"""
-        self.df_links["geh"] = \
-            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0)
-
-
-    def _var_geh(self):
-        """Compute GEH statistic variance, without the square root"""
-        self.df_links["var_geh"] = \
-            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0
-
-    
-
-
 
 
 

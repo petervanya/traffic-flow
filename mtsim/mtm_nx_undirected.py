@@ -6,11 +6,10 @@ import networkx as nx
 
 class MTMnx:
     """Macroscopic transport modelling class.
-    Using NetworkX library and based on directed graphs
-    for compatiblity with standard modelling software."""
+    Using NetworkX library and based on undirected graphs."""
     # global varialbles
     assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "length"]
+    basic_skim_kinds = ["t0", "tcur", "l"]
     
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -19,7 +18,7 @@ class MTMnx:
         - v_intra : intrazonal speed in kmh
         - verbose : level of printing information
         """
-        self.G = nx.DiGraph() # the graph structure
+        self.G = nx.Graph() # the graph structure
         self.skims = {} # skim matrices
         self.dmats = {} # demand matrices
         self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"]) # demand strata
@@ -28,50 +27,54 @@ class MTMnx:
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
-           
+        
+        
     def read_data(self, nodes, link_types, links):
         """
         Inputs
         ======
-        - Nodes : dataframe [is_zone, name, coords, pop], index: id
-        - Link types : dataframe [name, v0, qmax, a, b], index: id
+        - Nodes : dataframe [id, is_zone, name, coords, pop]
+        - Link types : dataframe [id, name, v0, qmax, a, b]
         - Links : dataframe [id, type, name, l, count], index: id_node_pair
         """
-        self.df_nodes = nodes.copy()
+        self.df_nodes = nodes
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
         
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
         
-        self.df_lt = link_types.copy()
+        self.df_lt = link_types
         self._verify_lt()
         
-        self.df_links = links.copy()
+        self.df_links = links
         self._verify_links()
         self._assign_link_data()
         
         self._fill_graph()
-                  
+        
+                
     def _verify_nodes(self):
-        """Verify columns 
-        ADD INDEX"""
-        assert np.isin(["id", "is_zone", "name", "pop"],\
+        """Check that key columns are present"""
+        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
                        self.df_nodes.columns).all(),\
             "Node list does not have the expected structure."
         
+    
     def _verify_lt(self):
         """Verify columns"""
-        assert np.isin(["type", "type_name", "v0", "qmax", "a", "b"],\
+        assert np.isin(["id", "v0", "qmax", "a", "b"],\
                        self.df_lt.columns).all(),\
             "Link type list does not have the expected structure."
             
+    
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
-        assert np.isin(["id", "type", "name", "length", "count", "node_from", "node_to"],\
+        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
                        self.df_links.columns).all(),\
             "Link list does not have the expected structure."
+    
     
     def _assign_link_data(self):
         """
@@ -81,31 +84,38 @@ class MTMnx:
         [t0, q, tcur, vcur]
         """
         # merge with link types
-        self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
-        self.df_links = self.df_links.set_index(["node_from", "node_to"])
+        # RENAME ID_LT to ID first
+        self.df_links = self.df_links.merge(\
+                self.df_lt.drop(["name"], 1), how="left", \
+                left_on="type", right_on="id", suffixes=("", "_dum"))\
+            .drop("id_dum", 1)
         
-        # assign empty attributes
-        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
+        self.df_links = self.df_links.set_index(["node_from", "node_to"])
+        # sort node order
+        
+        # assign new attributes
+        self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
         
-        # check if any values are missing
+        # check if all links have a type
         assert self.df_links["type"].isna().any() == False, \
             "Missing link types."
         
+    
     def compute_tcur_links(self):
         """Compute current travel time and speed wrt the flows
         and assign to the graph G"""
         self.df_links["tcur"] = self.df_links["t0"] * \
             (1.0 + self.df_links["a"] * \
             (self.df_links["q"] / self.df_links["qmax"])**self.df_links["b"])
-        self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
+        self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
         
         # assign to the graph
         nx.set_edge_attributes(self.G, self.df_links["tcur"], "tcur")
         nx.set_edge_attributes(self.G, self.df_links["vcur"], "vcur")
-
+        
 
     def _fill_graph(self):
         """Fill the graph with read nodes and links"""
@@ -149,10 +159,11 @@ class MTMnx:
         - TC : traffic travel time between zones
         """
         kw = {"diagonal": diagonal, "density": density}
-        self._compute_skim_basic("length", **kw)
+        self._compute_skim_basic("l", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
-                   
+              
+            
     def _compute_skim_basic(self, kind, diagonal="density", density=1000.0):
         """
         General method to compute skim matrices from basic quantities
@@ -168,7 +179,6 @@ class MTMnx:
             "Choose kind among %s." % self.basic_skim_kinds
         
         paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
-        
         self.skims[kind] = pd.DataFrame(dict(paths))\
             .loc[self.df_zones.index, self.df_zones.index]
         
@@ -183,7 +193,8 @@ class MTMnx:
         if kind in ["t0", "tcur"]:
             np.fill_diagonal(self.skims[kind].values, \
                 self.skims[kind].values.diagonal() / self.v_intra * 60.0)
-               
+              
+        
     def compute_skim_utility(self, name, params):
         """Compute the utility skim matrix composed of several
         basic link attributes (distance or times) and their unit
@@ -197,12 +208,13 @@ class MTMnx:
     # =====
     def dist_func(self, func, C, beta):
         if func == "exp":
-            return np.exp(beta*C)
+            return np.exp(-beta*C)
         elif func == "poly":
-            return C**(beta)
+            return C**(-beta)
         else:
             raise ValueError("Function should be exp or poly.")
         
+    
     def distribute(self, ds, C, func, param, Nit=10):
         """
         Compute OD matrices for a given demand stratum
@@ -222,7 +234,7 @@ class MTMnx:
             "Cost %s not found among skim matrices" % C
         assert func in ["exp", "poly"], \
             "Choose exp or poly function."
-        assert param <= 0.0, "Parameter should be <= 0."
+        assert param >= 0.0, "Parameter should be >= 0."
         assert Nit > 0, "Number of iterations should be positive."
         
         # define set of distribution parameters
@@ -231,8 +243,7 @@ class MTMnx:
         O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
         D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
             self.dstrat.loc[ds, "param"]
-        #O *= D.sum() / O.sum() # normalisation wrt attraction
-        O=np.multiply(O, D.sum() / O.sum())
+        O *= D.sum() / O.sum() # normalisation wrt attraction
         
         a, b = np.ones_like(O), np.ones_like(D)
         T = np.zeros((self.Nz, self.Nz))
@@ -255,7 +266,7 @@ class MTMnx:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", ws=[50, 50]):
+    def assign(self, imp, kind="incremental", weights=[50, 50]):
         """
         Perform assignment of traffic to the network.
         Use only one transport system here.
@@ -271,7 +282,7 @@ class MTMnx:
         - imp : impedance (link attribute) for path search 
             that is computed as a skim matrix
         - kind : type of assignment
-        - ws : assignment weights
+        - weights : assignment weights
         """
         assert kind in self.assignment_kinds, \
             "Assignment kind not available, choose from %s" % \
@@ -280,8 +291,8 @@ class MTMnx:
         assert imp in self.skims.keys(), \
             "Impedance '%s' not defined." % imp
             
-        ws = np.array(ws)
-        ws = ws / ws.sum() # normalise weights
+        weights = np.array(weights)
+        weights = weights / weights.sum() # normalise weights
         
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
@@ -291,7 +302,7 @@ class MTMnx:
         self.df_links["q"] = 0.0
         
         if kind == "incremental":
-            for wi, w in enumerate(ws):
+            for wi, w in enumerate(weights):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi+1, w))
                     
@@ -310,26 +321,6 @@ class MTMnx:
 
                 self.df_links["q"] = self.df_q["q"]
                 self.compute_tcur_links() # update current time and speed
-
-        self._geh()
-        self._var_geh()
-
-
-    def _geh(self):
-        """Compute the GEH error of each link with a measurement"""
-        self.df_links["geh"] = \
-            sqrt(2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0)
-
-
-    def _var_geh(self):
-        """Compute GEH statistic variance, without the square root"""
-        self.df_links["var_geh"] = \
-            2.0 * (self.df_links["q"] - self.df_links["count"])**2 / \
-            (self.df_links["q"] + self.df_links["count"]) / 10.0
-
-    
-
 
 
 
