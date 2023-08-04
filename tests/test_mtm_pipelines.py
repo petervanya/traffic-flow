@@ -14,7 +14,7 @@ print(f'igraph version: {ig.__version__}')
 print(f'networkx version: {nx.__version__}')
 print(f'Quince version: {mtsim.__version__}')
 
-def test_whole_pipeline():
+def test_simple_assignment():
 
     df_nodes, df_link_types, df_links = load_network_2()
     
@@ -43,4 +43,4 @@ def test_whole_pipeline():
 
 
 if __name__ == '__main__':
-    test_whole_pipeline()
+    test_simple_assignment()
