@@ -10,10 +10,11 @@ import igraph as ig
 class MTM:
     """Macroscopic transport modelling class.
     Using iGraph library and based on undirected graphs."""
+
     # global varialbles
     assignment_kinds = ["incremental"]
     basic_skim_kinds = ["t0", "tcur", "l"]
-    
+
     def __init__(self, v_intra=40.0, verbose=False):
         """
         Inputs
@@ -22,16 +23,17 @@ class MTM:
         - verbose : level of printing information
         """
         self.G = ig.Graph()
-        self.skims = {} # skim matrices
-        self.dmats = {} # demand matrices
-        self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"]) # demand strata
-        self.dpar = pd.DataFrame(columns=["skim", "func", "param"]) # distribution parameters
-        
+        self.skims = {}  # skim matrices
+        self.dmats = {}  # demand matrices
+        self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"])  # demand strata
+        self.dpar = pd.DataFrame(
+            columns=["skim", "func", "param"]
+        )  # distribution parameters
+
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
-        
-        
+
     def read_data(self, nodes, link_types, links):
         """
         Inputs
@@ -43,42 +45,39 @@ class MTM:
         self.df_nodes = nodes.copy()
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
-        
+
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
-        
+
         self.df_lt = link_types.copy()
         self._verify_lt()
-        
+
         self.df_links = links.copy()
         self._verify_links()
         self._assign_link_data()
-        
+
         self._fill_graph()
-        
-                
+
     def _verify_nodes(self):
         """Check that key columns are present"""
-        assert np.isin(["id", "is_zone", "name", "coords", "pop"],\
-                       self.df_nodes.columns).all(),\
-            "Node list does not have the expected structure."
-        
-    
+        assert np.isin(
+            ["id", "is_zone", "name", "coords", "pop"], self.df_nodes.columns
+        ).all(), "Node list does not have the expected structure."
+
     def _verify_lt(self):
         """Verify columns"""
-        assert np.isin(["id", "v0", "qmax", "a", "b"],\
-                       self.df_lt.columns).all(),\
-            "Link type list does not have the expected structure."
-            
-    
+        assert np.isin(
+            ["id", "v0", "qmax", "a", "b"], self.df_lt.columns
+        ).all(), "Link type list does not have the expected structure."
+
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
-        assert np.isin(["id", "type", "name", "l", "count", "node_from", "node_to"],\
-                       self.df_links.columns).all(),\
-            "Link list does not have the expected structure."
-    
-    
+        assert np.isin(
+            ["id", "type", "name", "l", "count", "node_from", "node_to"],
+            self.df_links.columns,
+        ).all(), "Link list does not have the expected structure."
+
     def _assign_link_data(self):
         """
         Assign the attributes of the link types to the links:
@@ -88,32 +87,35 @@ class MTM:
         """
         # merge with link types
         # RENAME ID_LT to ID first
-        self.df_links = self.df_links.merge(\
-                self.df_lt.drop(["name"], 1), how="left", \
-                left_on="type", right_on="id", suffixes=("", "_dum"))\
-            .drop("id_dum", 1)
-        
+        self.df_links = self.df_links.merge(
+            self.df_lt.drop(["name"], 1),
+            how="left",
+            left_on="type",
+            right_on="id",
+            suffixes=("", "_dum"),
+        ).drop("id_dum", 1)
+
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
         # sort node order
-        
+
         # assign empty attributes
         self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
-        
+
         # check if any values are missing
-        assert self.df_links["type"].isna().any() == False, \
-            "Missing link types."
-        
-    
+        assert self.df_links["type"].isna().any() == False, "Missing link types."
+
     def compute_tcur_links(self):
         """Compute current travel time and speed wrt the flows
         and assign to the graph G"""
-        self.df_links["tcur"] = self.df_links["t0"] * \
-            (1.0 + self.df_links["a"] * \
-            (self.df_links["q"] / self.df_links["qmax"])**self.df_links["b"])
-        
+        self.df_links["tcur"] = self.df_links["t0"] * (
+            1.0
+            + self.df_links["a"]
+            * (self.df_links["q"] / self.df_links["qmax"]) ** self.df_links["b"]
+        )
+
         self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
         # assign to the graph
         self.G.es["tcur"] = self.df_links["tcur"].values
@@ -123,7 +125,7 @@ class MTM:
         """Fill the graph with read nodes and links"""
         # making sure the graph is empty
         self.G = ig.Graph()
-        
+
         # adding vertices
         self.G.add_vertices(self.df_nodes.shape[0])
         self.G.vs["id"] = self.df_nodes.index.values
@@ -132,11 +134,12 @@ class MTM:
 
         # adding edges
         for k, _ in self.df_links.iterrows():
-            self.G.add_edges([(self.G.vs.find(id=k[0]).index,\
-                           self.G.vs.find(id=k[1]).index)])
+            self.G.add_edges(
+                [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
+            )
         for k, v in self.df_links.iteritems():
             self.G.es[k] = v.values
-            
+
     # =====
     # Trip generation
     # =====
@@ -152,13 +155,15 @@ class MTM:
         - param : parameter with which to multiply the productivity
             (mean number of trips per day, fraction of the population)
         """
-        assert prod in self.df_nodes.columns, \
-            "Production attribute not found in node columns."
-        assert attr in self.df_nodes.columns, \
-            "Attraction attribute not found in node columns."
-        
+        assert (
+            prod in self.df_nodes.columns
+        ), "Production attribute not found in node columns."
+        assert (
+            attr in self.df_nodes.columns
+        ), "Attraction attribute not found in node columns."
+
         self.dstrat.loc[name] = [prod, attr, param]
-    
+
     # =====
     # Skim matrices
     # =====
@@ -173,8 +178,7 @@ class MTM:
         self._compute_skim_basic("l", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
-              
-            
+
     def _compute_skim_basic(self, kind, diagonal="density", density=1000.0):
         """
         General method to compute skim matrices from basic quantities
@@ -186,49 +190,54 @@ class MTM:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.basic_skim_kinds, \
+        assert kind in self.basic_skim_kinds, (
             "Choose kind among %s." % self.basic_skim_kinds
-        
-        paths = self.G.shortest_paths(source=self.G.vs.select(is_zone_eq=True),\
-                      target=self.G.vs.select(is_zone_eq=True), weights=kind)
-        
+        )
+
+        paths = self.G.shortest_paths(
+            source=self.G.vs.select(is_zone_eq=True),
+            target=self.G.vs.select(is_zone_eq=True),
+            weights=kind,
+        )
+
         self.skims[kind] = pd.DataFrame(paths)
         self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
         self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
-        
+
         # compute diagonal based on distance
         if diagonal == "density":
-            np.fill_diagonal(self.skims[kind].values, \
-            np.sqrt(self.df_zones["pop"].values / density) * 0.5)
+            np.fill_diagonal(
+                self.skims[kind].values,
+                np.sqrt(self.df_zones["pop"].values / density) * 0.5,
+            )
         else:
             raise NotImplementedError("Only 'density'-based diagonal available.")
-            
+
         # adjust time-related skims
         if kind in ["t0", "tcur"]:
-            np.fill_diagonal(self.skims[kind].values, \
-                self.skims[kind].values.diagonal() / self.v_intra * 60.0)
-              
-        
+            np.fill_diagonal(
+                self.skims[kind].values,
+                self.skims[kind].values.diagonal() / self.v_intra * 60.0,
+            )
+
     def compute_skim_utility(self, name, params):
         """Compute the utility skim matrix composed of several
         basic link attributes (distance or times) and their unit
         values and specific link attributes"""
         # FILL
         pass
-    
-    
+
     # =====
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
         if func == "exp":
-            return np.exp(-beta*C)
+            return np.exp(-beta * C)
         elif func == "poly":
-            return C**(-beta)
+            return C ** (-beta)
         else:
             raise ValueError("Function should be exp or poly.")
-        
-    
+
     def distribute(self, ds, C, func, param, Nit=10):
         """
         Compute OD matrices for a given demand stratum
@@ -242,41 +251,41 @@ class MTM:
         - param : parameter of the distribution function
         - Nit : number of iterations
         """
-        assert ds in self.dstrat.index,\
-            "%s not found in demand strata." % ds
-        assert C in self.skims.keys(),\
-            "Cost %s not found among skim matrices" % C
-        assert func in ["exp", "poly"], \
-            "Choose exp or poly function."
+        assert ds in self.dstrat.index, "%s not found in demand strata." % ds
+        assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
+        assert func in ["exp", "poly"], "Choose exp or poly function."
         assert param >= 0.0, "Parameter should be >= 0."
         assert Nit > 0, "Number of iterations should be positive."
-        
+
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param]
-        
+
         O = self.df_zones[self.dstrat.loc[ds, "prod"]].values.copy().astype(float)
-        D = self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy() * \
-            self.dstrat.loc[ds, "param"]
-        O *= D.sum() / O.sum() # normalisation wrt attraction
-        
+        D = (
+            self.df_zones[self.dstrat.loc[ds, "attr"]].values.copy()
+            * self.dstrat.loc[ds, "param"]
+        )
+        O *= D.sum() / O.sum()  # normalisation wrt attraction
+
         a, b = np.ones_like(O), np.ones_like(D)
         T = np.zeros((self.Nz, self.Nz))
-        T = np.outer(O, D) * \
-            self.dist_func(func, self.skims[C].values, param)
-        
+        T = np.outer(O, D) * self.dist_func(func, self.skims[C].values, param)
+
         for i in range(Nit):
             a = O / T.sum(1)
             T = T * np.outer(a, b)
             b = D / T.sum(0)
 
         # compute final mean average errors
-        self.dist_errs = {"O": (abs(T.sum(1) - O)).sum() / len(T) / self.Nz,\
-                         "D": (abs(T.sum(0) - D)).sum() / len(T) / self.Nz}
-            
-        self.dmats[ds] = pd.DataFrame(T, columns=self.df_zones.index, \
-                              index=self.df_zones.index)
-    
-    
+        self.dist_errs = {
+            "O": (abs(T.sum(1) - O)).sum() / len(T) / self.Nz,
+            "D": (abs(T.sum(0) - D)).sum() / len(T) / self.Nz,
+        }
+
+        self.dmats[ds] = pd.DataFrame(
+            T, columns=self.df_zones.index, index=self.df_zones.index
+        )
+
     # =====
     # Assignment
     # =====
@@ -298,16 +307,15 @@ class MTM:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.assignment_kinds, \
-            "Assignment kind not available, choose from %s" % \
-            self.assignment_kinds
-        
-        assert imp in self.skims.keys(), \
-            "Impedance '%s' not defined." % imp
-            
+        assert kind in self.assignment_kinds, (
+            "Assignment kind not available, choose from %s" % self.assignment_kinds
+        )
+
+        assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp
+
         ws = np.array(ws)
-        ws = ws / ws.sum() # normalise weights
-        
+        ws = ws / ws.sum()  # normalise weights
+
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
 
@@ -316,25 +324,22 @@ class MTM:
         self.G.es["tcur"] = self.df_links["t0"].values
         self.G.es["vcur"] = self.df_links["v0"].values
         self.df_links["q"] = 0.0
-        
+
         if kind == "incremental":
             for wi, w in enumerate(ws):
                 if self.verbose:
-                    print("Assigning batch %i, weight %.2f ..." % (wi+1, w))
-                
+                    print("Assigning batch %i, weight %.2f ..." % (wi + 1, w))
+
                 vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
 
                 for i in vs_zones:
-                    p = self.G.get_shortest_paths(v=i, to=vs_zones,\
-                                            weights=imp, output="epath")
+                    p = self.G.get_shortest_paths(
+                        v=i, to=vs_zones, weights=imp, output="epath"
+                    )
                     dq = self.DM.loc[self.G.vs[i]["id"], :].values * w
-                        
+
                     for j, _ in enumerate(dq):
                         self.G.es[p[j]]["q"] += dq[j]
-                
+
                 self.df_links["q"] = self.G.es["q"]
-                self.compute_tcur_links() # update current time and speed
-
-
-
-
+                self.compute_tcur_links()  # update current time and speed
