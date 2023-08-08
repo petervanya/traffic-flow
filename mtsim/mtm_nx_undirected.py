@@ -3,14 +3,13 @@ import pandas as pd
 from numpy import sqrt, exp
 import networkx as nx
 
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS
 
-class MTMnx:
-    """Macroscopic transport modelling class.
-    Using NetworkX library and based on undirected graphs."""
-
-    # global varialbles
-    assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "l"]
+class MTMnxUndirected:
+    """
+    Macroscopic transport modelling class.
+    Using NetworkX library and based on undirected graphs.
+    """
 
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -176,8 +175,8 @@ class MTMnx:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.basic_skim_kinds, (
-            "Choose kind among %s." % self.basic_skim_kinds
+        assert kind in self.BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % self.BASIC_SKIM_KINDS
         )
 
         paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
@@ -288,8 +287,8 @@ class MTMnx:
         - kind : type of assignment
         - weights : assignment weights
         """
-        assert kind in self.assignment_kinds, (
-            "Assignment kind not available, choose from %s" % self.assignment_kinds
+        assert kind in self.ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
         )
 
         assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp

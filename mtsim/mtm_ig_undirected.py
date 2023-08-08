@@ -6,14 +6,14 @@ import pandas as pd
 from numpy import sqrt, exp
 import igraph as ig
 
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS
 
-class MTM:
-    """Macroscopic transport modelling class.
-    Using iGraph library and based on undirected graphs."""
 
-    # global varialbles
-    assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "l"]
+class MTMUndirected:
+    """
+    Macroscopic transport modelling class.
+    Using iGraph library and based on undirected graphs.
+    """
 
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -190,8 +190,8 @@ class MTM:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.basic_skim_kinds, (
-            "Choose kind among %s." % self.basic_skim_kinds
+        assert kind in self.BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % self.BASIC_SKIM_KINDS
         )
 
         paths = self.G.shortest_paths(
@@ -307,8 +307,8 @@ class MTM:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.assignment_kinds, (
-            "Assignment kind not available, choose from %s" % self.assignment_kinds
+        assert kind in self.ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
         )
 
         assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp

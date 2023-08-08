@@ -7,16 +7,15 @@ import pandas as pd
 import time
 import igraph as ig
 
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS
+
 
 class MTM:
-    """Macroscopic transport modelling class.
-    Using iGraph library and based on directed graphs
-    for compatiblity with standard modelling software."""
-
-    # global varialbles
-    assignment_kinds = ["incremental"]
-    basic_skim_kinds = ["t0", "tcur", "length"]
-    dist_funcs = ["exp", "poly", "power"]
+    """
+    Macroscopic transport modelling class.
+    Using iGraph library and based on directed graphs,
+    compatible with standard transport modelling software packages.
+    """
 
     def __init__(self, v_intra=40.0, verbose=False):
         """
@@ -223,8 +222,8 @@ class MTM:
         - density : float, optional
             Average population density per zone
         """
-        assert kind in self.basic_skim_kinds, (
-            "Choose kind among %s." % self.basic_skim_kinds
+        assert kind in self.BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % self.BASIC_SKIM_KINDS
         )
 
         ######################################################################
@@ -278,8 +277,8 @@ class MTM:
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
-        assert func in self.dist_funcs, (
-            "Choose distribution function from %s" % self.dist_funcs
+        assert func in self.DIST_FUNCS, (
+            "Choose distribution function from %s" % self.DIST_FUNCS
         )
         if func == "power":
             try:
@@ -312,7 +311,7 @@ class MTM:
         """
         assert ds in self.dstrat.index, "%s not found in demand strata." % ds
         assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
-        assert func in self.dist_funcs, "Choose function from %s." % self.dist_funcs
+        assert func in self.DIST_FUNCS, "Choose function from %s." % self.DIST_FUNCS
         assert Nit > 0, "Number of iterations should be positive."
         assert balancing in [
             "production",
@@ -381,8 +380,8 @@ class MTM:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.assignment_kinds, (
-            "Assignment kind not available, choose from %s" % self.assignment_kinds
+        assert kind in self.ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
         )
 
         #         K: Impedance in assignment is defined on graph's edges, not from
@@ -391,8 +390,8 @@ class MTM:
         #         Alternatively, it could be "assert imp in mtm.G.es.attributes()"
         #         but then it's risky that other attribute gets called by accident.
 
-        assert imp in self.basic_skim_kinds, (
-            "Choose impedance among %s." % self.basic_skim_kinds
+        assert imp in self.BASIC_SKIM_KINDS, (
+            "Choose impedance among %s." % self.BASIC_SKIM_KINDS
         )
 
         ws = np.array(ws)
