@@ -1,5 +1,6 @@
 networkx==2.5
 numpy==1.19.5
+scipy==1.6.1
 pandas==0.25.3
 python-igraph==0.8.2
 xlrd==1.2.0
