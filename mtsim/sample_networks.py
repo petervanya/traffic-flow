@@ -13,17 +13,17 @@ def load_network_1_undirected():
 
     return df_nodes, df_types, df_links
 
+
 def load_network_1():
     """Load a small directed network of 4 zones and 8 directed links"""
-    # dirn = os.path.dirname(__file__) + "/examples/"
+    dirn = os.path.dirname(__file__) + "/examples/"
 
-    # xls = pd.ExcelFile(dirn + "network_1_undirected.xlsx")
-    # df_nodes = xls.parse("nodes")
-    # df_types = xls.parse("link_types")
-    # df_links = xls.parse("links")
+    xls = pd.ExcelFile(dirn + "network_1.xlsx")
+    df_nodes = xls.parse("nodes")
+    df_types = xls.parse("link_types")
+    df_links = xls.parse("links")
 
-    # return df_nodes, df_types, df_links
-    raise NotImplementedError
+    return df_nodes, df_types, df_links
 
 
 def load_network_2_undirected():
@@ -48,4 +48,3 @@ def load_network_2():
     df_links = xls.parse("links")
 
     return df_nodes, df_types, df_links
-
