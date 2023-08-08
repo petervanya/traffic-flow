@@ -222,8 +222,8 @@ class MTM:
         - density : float, optional
             Average population density per zone
         """
-        assert kind in self.BASIC_SKIM_KINDS, (
-            "Choose kind among %s." % self.BASIC_SKIM_KINDS
+        assert kind in BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % BASIC_SKIM_KINDS
         )
 
         ######################################################################
@@ -277,8 +277,8 @@ class MTM:
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
-        assert func in self.DIST_FUNCS, (
-            "Choose distribution function from %s" % self.DIST_FUNCS
+        assert func in DIST_FUNCS, (
+            "Choose distribution function from %s" % DIST_FUNCS
         )
         if func == "power":
             try:
@@ -311,7 +311,7 @@ class MTM:
         """
         assert ds in self.dstrat.index, "%s not found in demand strata." % ds
         assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
-        assert func in self.DIST_FUNCS, "Choose function from %s." % self.DIST_FUNCS
+        assert func in DIST_FUNCS, "Choose function from %s." % DIST_FUNCS
         assert Nit > 0, "Number of iterations should be positive."
         assert balancing in [
             "production",
@@ -380,8 +380,8 @@ class MTM:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
+        assert kind in ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
         )
 
         #         K: Impedance in assignment is defined on graph's edges, not from
@@ -390,8 +390,8 @@ class MTM:
         #         Alternatively, it could be "assert imp in mtm.G.es.attributes()"
         #         but then it's risky that other attribute gets called by accident.
 
-        assert imp in self.BASIC_SKIM_KINDS, (
-            "Choose impedance among %s." % self.BASIC_SKIM_KINDS
+        assert imp in BASIC_SKIM_KINDS, (
+            "Choose impedance among %s." % BASIC_SKIM_KINDS
         )
 
         ws = np.array(ws)
