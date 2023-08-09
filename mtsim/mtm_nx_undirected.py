@@ -3,7 +3,7 @@ import pandas as pd
 from numpy import sqrt, exp
 import networkx as nx
 
-from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS
 
 class MTMnxUndirected:
     """
@@ -175,8 +175,8 @@ class MTMnxUndirected:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.BASIC_SKIM_KINDS, (
-            "Choose kind among %s." % self.BASIC_SKIM_KINDS
+        assert kind in BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % BASIC_SKIM_KINDS
         )
 
         paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
@@ -287,8 +287,8 @@ class MTMnxUndirected:
         - kind : type of assignment
         - weights : assignment weights
         """
-        assert kind in self.ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
+        assert kind in ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
         )
 
         assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp

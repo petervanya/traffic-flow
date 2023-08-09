@@ -190,8 +190,8 @@ class MTMUndirected:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.BASIC_SKIM_KINDS, (
-            "Choose kind among %s." % self.BASIC_SKIM_KINDS
+        assert kind in BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % BASIC_SKIM_KINDS
         )
 
         paths = self.G.shortest_paths(
@@ -307,8 +307,8 @@ class MTMUndirected:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
+        assert kind in ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
         )
 
         assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp
