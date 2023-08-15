@@ -31,7 +31,7 @@ def test_ig_directed():
     print("Attraction balancing with any mobility (should be same)")
     mtm.read_data(df_n, df_lt, df_l)
     mtm.generate("all", "pop", "pop2", 0.22)
-    mtm.compute_skims(diagonal="area")
+    mtm.compute_skims()  # diagonal="area")
     mtm.distribute("all", "t0", "exp", -0.1, balancing="attraction")
     mtm.assign("t0")
     print(mtm.df_links["geh"].mean())
