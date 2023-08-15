@@ -2,7 +2,6 @@
 Author: Katarina Simkova and Peter Vanya
 """
 import numpy as np
-from numpy import sqrt, exp
 import pandas as pd
 import time
 import igraph as ig
@@ -73,7 +72,7 @@ class MTM:
         """Verify columns"""
         assert np.isin(
             ["type", "type_name", "v0", "qmax", "a", "b"], self.df_lt.columns
-        ).all(), "Link type list does not have the expected structure."
+        ).all(), "link type list does not have the expected structure"
 
     def _verify_links(self):
         """Verify if link type numbers subset of link types
@@ -120,9 +119,10 @@ class MTM:
 
     def _fill_graph(self):
         """Fill the graph with read-in nodes and links"""
-        #############################################################
-        # K: making sure the graph is empty (needed when self.read_data is run
-        # multiple times in the code, but MTM does not initialise at every run)
+        """
+        KS: making sure the graph is empty (needed when self.read_data is run
+        multiple times in the code, but MTM does not initialise at every run)
+        """
         if len(self.G.vs) > 0:
             self.G = ig.Graph(directed=True)
 
@@ -139,8 +139,6 @@ class MTM:
             )
         for k, v in self.df_links.iteritems():
             self.G.es[k] = v.values
-
-    #############################################################
 
     # =====
     # Trip generation
@@ -179,7 +177,7 @@ class MTM:
     # =====
     def compute_skims(self, diagonal="density", density=1000.0, diagonal_param=0.5):
         """
-        Compute skim matrices, choose from:
+        Compute skim matrices, choose from the following:
         - "length" : distance between zones
         - "t0" : free flow travel time between zones
         - "tcur" : traffic travel time between zones
@@ -226,7 +224,7 @@ class MTM:
             "Choose kind among %s." % BASIC_SKIM_KINDS
         )
 
-        ######################################################################
+        # get shortest paths
         paths = self.G.shortest_paths(
             source=self.G.vs.select(is_zone_eq=True),
             target=self.G.vs.select(is_zone_eq=True),
@@ -236,7 +234,6 @@ class MTM:
         self.skims[kind] = pd.DataFrame(paths)
         self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
         self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
-        ######################################################################
 
         # compute diagonal based on distance
         if diagonal == "density":
@@ -270,8 +267,7 @@ class MTM:
         """Compute the utility skim matrix composed of several
         basic link attributes (distance or times) and their unit
         values and specific link attributes"""
-        # FILL
-        pass
+        raise NotImplementedError
 
     # =====
     # Trip distribution
@@ -294,25 +290,25 @@ class MTM:
         elif func == "power":
             return (C + beta[1]) ** beta[0]
 
-    def distribute(self, ds, C, func, param, Nit=10, balancing="production", symm=True):
+    def distribute(self, ds, C, func, param, n_iter=10, balancing="production", symm=True):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
         
         Inputs
-        ======
+        ------
         - ds : demand stratum
         - C : cost function as skim matrix, t0, tcur, length or utility
         - func : distribution function
         - param : parameter of the distribution function
-        - Nit : number of iterations
+        - n_iter : number of iterations
         - balancing : normalisation of trips wrt production or attraction
         - symm : symmetrise the demand matrix
         """
         assert ds in self.dstrat.index, "%s not found in demand strata." % ds
         assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
         assert func in DIST_FUNCS, "Choose function from %s." % DIST_FUNCS
-        assert Nit > 0, "Number of iterations should be positive."
+        assert n_iter > 0, "Number of iterations should be positive."
         assert balancing in [
             "production",
             "attraction",
@@ -341,7 +337,7 @@ class MTM:
         T = np.zeros((self.Nz, self.Nz))
         T = np.outer(O, D) * self.dist_func(func, self.skims[C].values, param)
 
-        for i in range(Nit):
+        for i in range(n_iter):
             a = O / T.sum(1)
             T = T * np.outer(a, b)
             b = D / T.sum(0)
@@ -362,56 +358,57 @@ class MTM:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", ws=[50, 50]):
+    def assign(self, imp, kind="incremental", weights=[50, 50]):
         """
-        Perform assignment of traffic to the network.
+        Assign demand matrix to the network.
         Use only one transport system here.
-        
+
         1. Sum all demand matrices.
         2. For each weight, calculate all the shortest paths 
            by given impedance (distance or current time) 
            between two zones and add to the links on the path. 
            Update current time.
+
+        KS: Impedance in assignment is defined on graph's edges, not from
+        skim matrices. Changed "assert imp in self.skims.keys()" and its
+        error prompt to "assert imp in self.basic_skim_kinds".
+        Alternatively, it could be "assert imp in mtm.G.es.attributes()"
+        but then it's risky that other attribute gets called by accident.
         
         Inputs
-        ======
+        ------
         - imp : impedance (link attribute) for path search 
             that is computed as a skim matrix
         - kind : type of assignment
         - ws : assignment weights
         """
         assert kind in ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
+            "choose assignment kind from %s" % ASSIGNMENT_KINDS
         )
-
-        #         K: Impedance in assignment is defined on graph's edges, not from
-        #         skim matrices. Changed "assert imp in self.skims.keys()" and its
-        #         error prompt to "assert imp in self.basic_skim_kinds".
-        #         Alternatively, it could be "assert imp in mtm.G.es.attributes()"
-        #         but then it's risky that other attribute gets called by accident.
 
         assert imp in BASIC_SKIM_KINDS, (
-            "Choose impedance among %s." % BASIC_SKIM_KINDS
+            "choose impedance among %s" % BASIC_SKIM_KINDS
         )
 
-        ws = np.array(ws)
-        ws = ws / ws.sum()  # normalise weights
+        weights = np.array(weights)
+        weights = weights / weights.sum()  # normalise weights
 
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
 
         # remove flows and reset tcur/vcur before assignment
-        ####################################################
-        # K: added resetting the tcur and vcur on graph to t0 and v0, since
-        # this caused the inconsistency of 1 run of the module with the module
-        # running in the loop if read_data was not in the loop
+        """
+        KS: added resetting the tcur and vcur on graph to t0 and v0, since
+        this caused the inconsistency of 1 run of the module with the module
+        running in the loop if read_data was not in the loop
+        """
         self.G.es["q"] = 0.0
         self.G.es["tcur"] = self.df_links["t0"].values
         self.G.es["vcur"] = self.df_links["v0"].values
         self.df_links["q"] = 0.0
 
         if kind == "incremental":
-            for wi, w in enumerate(ws):
+            for wi, w in enumerate(weights):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi + 1, w))
                 vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
@@ -436,7 +433,7 @@ class MTM:
     # =====
     def _geh(self):
         """Compute the GEH error of each link with a measurement"""
-        self.df_links["geh"] = sqrt(
+        self.df_links["geh"] = np.sqrt(
             2.0
             * (self.df_links["q"] - self.df_links["count"]) ** 2
             / (self.df_links["q"] + self.df_links["count"])
@@ -446,7 +443,7 @@ class MTM:
     def _geh_vehkm(self):
         """Compute GEH adjusted for section lengths"""
         l = self.df_links["length"]
-        self.df_links["geh"] = sqrt(
+        self.df_links["geh"] = np.sqrt(
             2.0
             * (self.df_links["q"] * l - self.df_links["count"] * l) ** 2
             / (self.df_links["q"] * l + self.df_links["count"] * l)
@@ -592,7 +589,7 @@ class MTM:
             )
 
         # assignment
-        self.assign(imp=imp, ws=ws)
+        self.assign(imp=imp, weights=ws)
 
         relevant = self.df_links[
             np.logical_and(
@@ -601,11 +598,11 @@ class MTM:
             )
         ]
 
-        gehs = sqrt(
+        gehs = np.sqrt(
             2.0
             * (relevant["q"].values - relevant["count"].values) ** 2
             / (relevant["q"].values + relevant["count"].values)
-        ) / sqrt(10.0)
+        ) / np.sqrt(10.0)
 
         #     reg = alpha*(\
         #             self.dmats["all"].multiply(self.skims["t0"]).sum().sum()\
@@ -615,7 +612,7 @@ class MTM:
         return np.sum(gehs)  # + reg
 
     # =====
-    # Processing
+    # Processing functions
     # =====
     def compute_mean_trip_length(self, ds):
         """Compute the mean trip length for a given demand stratum"""
