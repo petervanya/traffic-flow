@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from numpy import sqrt, exp
 import networkx as nx
 
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS
@@ -38,7 +37,7 @@ class MTMnx:
         ======
         - Nodes : dataframe [is_zone, name, coords, pop], index: id
         - Link types : dataframe [name, v0, qmax, a, b], index: id
-        - Links : dataframe [id, type, name, l, count], index: id_node_pair
+        - Links : dataframe [id, type, name, length, count], index: id_node_pair
         """
         self.df_nodes = nodes.copy()
         self._verify_nodes()
@@ -213,7 +212,7 @@ class MTMnx:
         else:
             raise ValueError("Function should be exp or poly.")
 
-    def distribute(self, ds, C, func, param, Nit=10):
+    def distribute(self, ds, C, func, param, n_iter=10):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
@@ -226,11 +225,11 @@ class MTMnx:
         - param : parameter of the distribution function
         - Nit : number of iterations
         """
-        assert ds in self.dstrat.index, "%s not found in demand strata." % ds
-        assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
-        assert func in ["exp", "poly"], "Choose exp or poly function."
-        assert param <= 0.0, "Parameter should be <= 0."
-        assert Nit > 0, "Number of iterations should be positive."
+        assert ds in self.dstrat.index, "%s not found in demand strata" % ds
+        assert C in self.skims.keys(), "cost %s not found among skim matrices" % C
+        assert func in ["exp", "poly"], "choose exp or poly function"
+        assert param <= 0.0, "parameter should be <= 0"
+        assert n_iter > 0, "number of iterations should be positive"
 
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param]
@@ -247,7 +246,7 @@ class MTMnx:
         T = np.zeros((self.Nz, self.Nz))
         T = np.outer(O, D) * self.dist_func(func, self.skims[C].values, param)
 
-        for i in range(Nit):
+        for i in range(n_iter):
             a = O / T.sum(1)
             T = T * np.outer(a, b)
             b = D / T.sum(0)
@@ -265,7 +264,7 @@ class MTMnx:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", ws=[50, 50]):
+    def assign(self, imp, kind="incremental", weights=[50, 50]):
         """
         Perform assignment of traffic to the network.
         Use only one transport system here.
@@ -284,13 +283,12 @@ class MTMnx:
         - ws : assignment weights
         """
         assert kind in ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
+            "choose assignment kind from %s" % ASSIGNMENT_KINDS
         )
+        assert imp in self.skims.keys(), f"impedance '{imp}' not defined."
 
-        assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp
-
-        ws = np.array(ws)
-        ws = ws / ws.sum()  # normalise weights
+        weights = np.array(weights)
+        weights = weights / weights.sum()  # normalise weights
 
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
@@ -300,7 +298,7 @@ class MTMnx:
         self.df_links["q"] = 0.0
 
         if kind == "incremental":
-            for wi, w in enumerate(ws):
+            for wi, w in enumerate(weights):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi + 1, w))
 
@@ -326,7 +324,7 @@ class MTMnx:
 
     def _geh(self):
         """Compute the GEH error of each link with a measurement"""
-        self.df_links["geh"] = sqrt(
+        self.df_links["geh"] = np.sqrt(
             2.0
             * (self.df_links["q"] - self.df_links["count"]) ** 2
             / (self.df_links["q"] + self.df_links["count"])
