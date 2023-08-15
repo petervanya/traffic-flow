@@ -3,7 +3,6 @@ Author: Katarina Simkova and Peter Vanya
 """
 import numpy as np
 import pandas as pd
-from numpy import sqrt, exp
 import igraph as ig
 
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS
@@ -22,7 +21,7 @@ class MTMUndirected:
         - v_intra : intrazonal speed in kmh
         - verbose : level of printing information
         """
-        self.G = ig.Graph()
+        self.G = ig.Graph()  # internal graph representation
         self.skims = {}  # skim matrices
         self.dmats = {}  # demand matrices
         self.dstrat = pd.DataFrame(columns=["prod", "attr", "param"])  # demand strata
@@ -59,22 +58,22 @@ class MTMUndirected:
         self._fill_graph()
 
     def _verify_nodes(self):
-        """Check that key columns are present"""
+        """Check node columns"""
         assert np.isin(
             ["id", "is_zone", "name", "coords", "pop"], self.df_nodes.columns
         ).all(), "Node list does not have the expected structure."
 
     def _verify_lt(self):
-        """Verify columns"""
+        """Verify link type columns"""
         assert np.isin(
-            ["id", "v0", "qmax", "a", "b"], self.df_lt.columns
-        ).all(), "Link type list does not have the expected structure."
+            ["type", "type_name", "v0", "qmax", "a", "b"], self.df_lt.columns
+        ).all(), "link type list does not have the expected structure"
 
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
         assert np.isin(
-            ["id", "type", "name", "l", "count", "node_from", "node_to"],
+            ["id", "type", "name", "length", "count", "node_from", "node_to"],
             self.df_links.columns,
         ).all(), "Link list does not have the expected structure."
 
@@ -87,19 +86,12 @@ class MTMUndirected:
         """
         # merge with link types
         # RENAME ID_LT to ID first
-        self.df_links = self.df_links.merge(
-            self.df_lt.drop(["name"], 1),
-            how="left",
-            left_on="type",
-            right_on="id",
-            suffixes=("", "_dum"),
-        ).drop("id_dum", 1)
-
+        self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
         # sort node order
 
         # assign empty attributes
-        self.df_links["t0"] = self.df_links["l"] / self.df_links["v0"] * 60.0
+        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
@@ -116,7 +108,7 @@ class MTMUndirected:
             * (self.df_links["q"] / self.df_links["qmax"]) ** self.df_links["b"]
         )
 
-        self.df_links["vcur"] = self.df_links["l"] / self.df_links["tcur"] * 60.0
+        self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
         # assign to the graph
         self.G.es["tcur"] = self.df_links["tcur"].values
         self.G.es["vcur"] = self.df_links["vcur"].values
@@ -175,7 +167,7 @@ class MTMUndirected:
         - TC : traffic travel time between zones
         """
         kw = {"diagonal": diagonal, "density": density}
-        self._compute_skim_basic("l", **kw)
+        self._compute_skim_basic("length", **kw)
         self._compute_skim_basic("t0", **kw)
         self._compute_skim_basic("tcur", **kw)
 
@@ -190,8 +182,8 @@ class MTMUndirected:
         - diagonal : way to compute the matrix diagonal
         - density : average density per zone
         """
-        assert kind in self.BASIC_SKIM_KINDS, (
-            "Choose kind among %s." % self.BASIC_SKIM_KINDS
+        assert kind in BASIC_SKIM_KINDS, (
+            "Choose kind among %s." % BASIC_SKIM_KINDS
         )
 
         paths = self.G.shortest_paths(
@@ -224,21 +216,20 @@ class MTMUndirected:
         """Compute the utility skim matrix composed of several
         basic link attributes (distance or times) and their unit
         values and specific link attributes"""
-        # FILL
-        pass
+        raise NotImplementedError
 
     # =====
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
         if func == "exp":
-            return np.exp(-beta * C)
+            return np.exp(beta * C)
         elif func == "poly":
-            return C ** (-beta)
+            return C ** (beta)
         else:
             raise ValueError("Function should be exp or poly.")
 
-    def distribute(self, ds, C, func, param, Nit=10):
+    def distribute(self, ds, C, func, param, n_iter=10):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
@@ -254,8 +245,8 @@ class MTMUndirected:
         assert ds in self.dstrat.index, "%s not found in demand strata." % ds
         assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
         assert func in ["exp", "poly"], "Choose exp or poly function."
-        assert param >= 0.0, "Parameter should be >= 0."
-        assert Nit > 0, "Number of iterations should be positive."
+        assert param <= 0.0, "parameter should be <= 0"
+        assert n_iter > 0, "number of iterations should be positive"
 
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param]
@@ -271,7 +262,7 @@ class MTMUndirected:
         T = np.zeros((self.Nz, self.Nz))
         T = np.outer(O, D) * self.dist_func(func, self.skims[C].values, param)
 
-        for i in range(Nit):
+        for i in range(n_iter):
             a = O / T.sum(1)
             T = T * np.outer(a, b)
             b = D / T.sum(0)
@@ -289,7 +280,7 @@ class MTMUndirected:
     # =====
     # Assignment
     # =====
-    def assign(self, imp, kind="incremental", ws=[50, 50]):
+    def assign(self, imp, kind="incremental", weights=[50, 50]):
         """
         Perform assignment of traffic to the network.
         Use only one transport system here.
@@ -307,14 +298,14 @@ class MTMUndirected:
         - kind : type of assignment
         - ws : assignment weights
         """
-        assert kind in self.ASSIGNMENT_KINDS, (
-            "Assignment kind not available, choose from %s" % self.ASSIGNMENT_KINDS
+        assert kind in ASSIGNMENT_KINDS, (
+            "Assignment kind not available, choose from %s" % ASSIGNMENT_KINDS
         )
 
         assert imp in self.skims.keys(), "Impedance '%s' not defined." % imp
 
-        ws = np.array(ws)
-        ws = ws / ws.sum()  # normalise weights
+        weights = np.array(weights)
+        weights = weights / weights.sum()  # normalise weights
 
         # sum all demand matrices into one
         self.DM = sum(self.dmats.values())
@@ -326,7 +317,7 @@ class MTMUndirected:
         self.df_links["q"] = 0.0
 
         if kind == "incremental":
-            for wi, w in enumerate(ws):
+            for wi, w in enumerate(weights):
                 if self.verbose:
                     print("Assigning batch %i, weight %.2f ..." % (wi + 1, w))
 
