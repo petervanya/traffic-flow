@@ -110,8 +110,18 @@ model.compute_skims()
 model.distribute("stratum-1", "tcur", "exp", -0.02)
 
 # optimise using 10 iterations
-model.optimise(10)
+model.optimise(n_iter=10)
 ```
+
+Get the results:
+```python
+>>> print(model.opt_params)
+```
+|           |   attr_param |   dist_param |
+|:----------|-------------:|-------------:|
+| stratum-1 |     0.699951 |   -0.0581738 |
+
+After optimisation, trip generation changed to 0.7 and the distribution exponent to -0.06 respectively.
 
 Currently [dual annealing](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.dual_annealing.html)
 is the only available global optimisation method, others can be added upon request.
@@ -122,4 +132,4 @@ is the only available global optimisation method, others can be added upon reque
 
 Started as a side project during an internship at the Ministry of Finance of Slovakia.
 
-To contribute, please fork the repo, make *reasonable* changes (ideally contact me at `peter.vanya~gmail` first) and create a pull request.
+To contribute, please fork the repo, make *reasonable* changes (ideally contact me at `peter.vanya~gmail` before) and create a pull request.
