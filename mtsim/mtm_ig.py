@@ -220,9 +220,7 @@ class MTM:
         - density : float, optional
             Average population density per zone
         """
-        assert kind in BASIC_SKIM_KINDS, (
-            "Choose kind among %s." % BASIC_SKIM_KINDS
-        )
+        assert kind in BASIC_SKIM_KINDS, "Choose kind among %s." % BASIC_SKIM_KINDS
 
         # get shortest paths
         paths = self.G.shortest_paths(
@@ -287,7 +285,9 @@ class MTM:
         elif func == "power":
             return (C + beta[1]) ** beta[0]
 
-    def distribute(self, ds, C, func, param, n_iter=10, balancing="production", symm=True):
+    def distribute(
+        self, ds, C, func, param, n_iter=10, balancing="production", symm=True
+    ):
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
@@ -383,9 +383,7 @@ class MTM:
             "choose assignment kind from %s" % ASSIGNMENT_KINDS
         )
 
-        assert imp in BASIC_SKIM_KINDS, (
-            "choose impedance among %s" % BASIC_SKIM_KINDS
-        )
+        assert imp in BASIC_SKIM_KINDS, "choose impedance among %s" % BASIC_SKIM_KINDS
 
         weights = np.array(weights)
         weights = weights / weights.sum()  # normalise weights
@@ -538,7 +536,11 @@ class MTM:
             from scipy.optimize import dual_annealing
 
             res = dual_annealing(
-                self._obj_function, args=optargs, bounds=bounds, seed=seed, maxiter=n_iter
+                self._obj_function,
+                args=optargs,
+                bounds=bounds,
+                seed=seed,
+                maxiter=n_iter,
             )
         elif optfun == "basinhopping":
             # from scipy.optimize import basinhopping
