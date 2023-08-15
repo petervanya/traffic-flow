@@ -273,15 +273,12 @@ class MTM:
     # Trip distribution
     # =====
     def dist_func(self, func, C, beta):
-        assert func in DIST_FUNCS, (
-            "Choose distribution function from %s" % DIST_FUNCS
-        )
         if func == "power":
             try:
                 iter(beta)
             except TypeError:
-                print("Power law parameters should be in a list")
-            assert len(beta) == 2, "Power law function has two parameters."
+                print("power law parameters should be in a list")
+            assert len(beta) == 2, "power law function has two parameters"
 
         if func == "exp":
             return np.exp(beta * C)
@@ -305,19 +302,19 @@ class MTM:
         - balancing : normalisation of trips wrt production or attraction
         - symm : symmetrise the demand matrix
         """
-        assert ds in self.dstrat.index, "%s not found in demand strata." % ds
-        assert C in self.skims.keys(), "Cost %s not found among skim matrices" % C
-        assert func in DIST_FUNCS, "Choose function from %s." % DIST_FUNCS
-        assert n_iter > 0, "Number of iterations should be positive."
+        assert ds in self.dstrat.index, "%s not found in demand strata" % ds
+        assert C in self.skims.keys(), "cost %s not found among skim matrices" % C
+        assert func in DIST_FUNCS, "choose distribution function from %s" % DIST_FUNCS
+        assert n_iter > 0, "number of iterations should be positive"
         assert balancing in [
             "production",
             "attraction",
         ], "Incorrect choice of balancing."
         assert symm in [True, False], "Choose True/False for matrix symmetrisation."
         if func == "power" and param[0] >= 0.0:
-            print("Warning: Parameter of decay should be < 0.")
+            print("warning: Parameter of decay should be < 0")
         elif func != "power" and param >= 0.0:
-            print("Warning: Parameter of decay should be < 0.")
+            print("warning: Parameter of decay should be < 0")
 
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
@@ -475,20 +472,20 @@ class MTM:
     # =====
     def optimise(
         self,
-        Nit,
+        n_iter,
         optfun="dual_annealing",
         x0=None,
         bounds=None,
         imp="tcur",
         seed=1101,
-        ws=[50, 50],
+        weights=[50, 50],
     ):
         """
         Global optimisation of model parameters.
 
-        Input
-        =====
-        - Nit : number of iterations
+        Inputs
+        ------
+        - n_iter : number of iterations
         - optfun : optimisation function from Scipy
         - x0 : initial estimates of the parameters
         - imp : assignment impedance (t0, tcur, l)
@@ -505,18 +502,18 @@ class MTM:
         ], "Choose functions from: dual_annealing, basinhopping."
 
         # compute the number of optimisation parameters
-        N_par = 0
+        n_param = 0
         for ds in self.dstrat.index:
             par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
-            N_par += par + 1
+            n_param += par + 1
 
         # check the structure of initial values if required
         if optfun in ["basinhopping"]:
-            assert x0 != None and len(x0) == N_par, (
+            assert x0 != None and len(x0) == n_param, (
                 "Number of initial values must correspond\
                 to the number of trip generation and distribution parameters\
                 (%i)."
-                % N_par
+                % n_param
             )
 
         # compose the list of bounds if required
@@ -531,21 +528,22 @@ class MTM:
                     else:  # power law
                         bounds += [(0.0, 50.0), (-5.0, -1e-6)]
             else:
-                assert len(bounds) == N_par, "Incorrect number of bounds."
+                assert len(bounds) == n_param, "incorrect number of bounds"
 
-        optargs = (imp, ws)
+        optargs = (imp, weights)
 
+        # optimisation core
         tic = time.time()
         if optfun == "dual_annealing":
             from scipy.optimize import dual_annealing
 
             res = dual_annealing(
-                self._obj_function, args=optargs, bounds=bounds, seed=seed, maxiter=Nit
+                self._obj_function, args=optargs, bounds=bounds, seed=seed, maxiter=n_iter
             )
         elif optfun == "basinhopping":
-            #            from scipy.optimize import basinhopping
-            #            res = basinhopping(self._obj_function, x0=x0, niter=Nit, \
-            #                minimizer_kwargs=optargs, bounds=bounds, seed=seed)
+            # from scipy.optimize import basinhopping
+            # res = basinhopping(self._obj_function, x0=x0, niter=Nit, \
+            #     minimizer_kwargs=optargs, bounds=bounds, seed=seed)
             raise NotImplementedError
         toc = time.time()
 
@@ -558,7 +556,7 @@ class MTM:
 
         self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
 
-    def _obj_function(self, z, imp, ws=[50, 50]):
+    def _obj_function(self, z, imp, weights=[50, 50]):
         """
         The sum of all GEH differences between traffic counts and modelled
         flows on links that contain the counts.
@@ -589,7 +587,7 @@ class MTM:
             )
 
         # assignment
-        self.assign(imp=imp, weights=ws)
+        self.assign(imp=imp, weights=weights)
 
         relevant = self.df_links[
             np.logical_and(
