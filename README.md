@@ -70,7 +70,7 @@ df_nodes, df_link_types, df_links = load_network_2()
 
 ### Simulation
 ```python
-from traffic_flow import MTM
+from traffic_flow import MTM  # macroscopic transport model
 
 # initialise the object
 model = MTM()
