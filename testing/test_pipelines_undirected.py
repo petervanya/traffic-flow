@@ -4,18 +4,18 @@ import pandas as pd
 import igraph as ig
 import networkx as nx
 
-import mtsim
+import traffic_flow
 
 print(f'Numpy version: {np.__version__}')
 print(f'Pandas version: {pd.__version__}')
 print(f'Igraph version: {ig.__version__}')
 print(f'NetworkX version: {nx.__version__}')
-print(f'Quince version: {mtsim.__version__}')
+print(f'Quince version: {traffic_flow.__version__}')
 
 
 def test_network_1_nx_undirected():
-    from mtsim import MTMnxUndirected
-    from mtsim.sample_networks import load_network_1_undirected
+    from traffic_flow import MTMnxUndirected
+    from traffic_flow.sample_networks import load_network_1_undirected
 
     print('\nTesting NetworkX backend, network 1 undirected...')
 
@@ -34,8 +34,8 @@ def test_network_1_nx_undirected():
 
 
 def test_network_2_nx_undirected():
-    from mtsim import MTMnxUndirected
-    from mtsim.sample_networks import load_network_2_undirected
+    from traffic_flow import MTMnxUndirected
+    from traffic_flow.sample_networks import load_network_2_undirected
 
     print('\nTesting NetworkX backend, network 2 undirected...')
 
@@ -54,8 +54,8 @@ def test_network_2_nx_undirected():
 
 
 def test_network_1_ig_undirected():
-    from mtsim import MTMUndirected
-    from mtsim.sample_networks import load_network_1_undirected
+    from traffic_flow import MTMUndirected
+    from traffic_flow.sample_networks import load_network_1_undirected
 
     print('\nTesting Igraph backend, network 1 undirected...')
 
@@ -74,10 +74,10 @@ def test_network_1_ig_undirected():
 
 
 def test_network_2_ig_undirected():
-    from mtsim import MTMUndirected
-    from mtsim.sample_networks import load_network_2_undirected
+    from traffic_flow import MTMUndirected
+    from traffic_flow.sample_networks import load_network_2_undirected
     
-    print('\nTesting Igraph backend, network 2...')
+    print('\nTesting Igraph backend, network 2 undirected...')
 
     df_nodes, df_link_types, df_links = load_network_2_undirected()
 
