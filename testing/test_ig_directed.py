@@ -4,8 +4,8 @@ Test Igraph backend with directed sample network 2.
 
 2020-10-28
 """
-from mtsim import MTM
-from mtsim.sample_networks import load_network_2
+from traffic_flow import MTM
+from traffic_flow.sample_networks import load_network_2
 
 def test_ig_directed():
     df_n, df_lt, df_l = load_network_2()

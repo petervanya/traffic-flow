@@ -4,18 +4,18 @@ import pandas as pd
 import igraph as ig
 import networkx as nx
 
-import mtsim
+import traffic_flow
 
 print(f'Numpy version: {np.__version__}')
 print(f'Pandas version: {pd.__version__}')
 print(f'Igraph version: {ig.__version__}')
 print(f'NetworkX version: {nx.__version__}')
-print(f'Quince version: {mtsim.__version__}')
+print(f'Quince version: {traffic_flow.__version__}')
 
 
 def test_network_1_nx():
-    from mtsim import MTMnx
-    from mtsim.sample_networks import load_network_1
+    from traffic_flow import MTMnx
+    from traffic_flow.sample_networks import load_network_1
 
     print('\nTesting NetworkX backend, network 1...')
 
@@ -34,8 +34,8 @@ def test_network_1_nx():
 
 
 def test_network_2_nx():
-    from mtsim import MTMnx
-    from mtsim.sample_networks import load_network_2
+    from traffic_flow import MTMnx
+    from traffic_flow.sample_networks import load_network_2
 
     print('\nTesting NetworkX backend, network 2...')
 
@@ -54,8 +54,8 @@ def test_network_2_nx():
 
 
 def test_network_1_ig():
-    from mtsim import MTM
-    from mtsim.sample_networks import load_network_1
+    from traffic_flow import MTM
+    from traffic_flow.sample_networks import load_network_1
 
     print('\nTesting Igraph backend, network 1...')
 
@@ -74,8 +74,8 @@ def test_network_1_ig():
 
 
 def test_network_2_ig():
-    from mtsim import MTM
-    from mtsim.sample_networks import load_network_2
+    from traffic_flow import MTM
+    from traffic_flow.sample_networks import load_network_2
     
     print('\nTesting Igraph backend, network 2...')
 

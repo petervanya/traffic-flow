@@ -5,11 +5,10 @@ Testing of the optimisation procedure using Igraph backend.
 Created: 2020-09-24
 Update: 2023-08-15
 """
-import pandas as pd
 import time
 
-from mtsim import MTM
-from mtsim.sample_networks import load_network_2
+from traffic_flow import MTM
+from traffic_flow.sample_networks import load_network_2
 
 
 def test_optimise():
@@ -32,8 +31,8 @@ def test_optimise():
     toc = time.time()
 
     print("Optimisation done. Time: %.3f s" % (toc - tic))
-    print(model.opt_params.to_markdown())
-    print(model.opt_output.to_markdown())
+    print(model.opt_params)  # .to_markdown())
+    print(model.opt_output)  # .to_markdown())
 
 
 if __name__ == "__main__":
