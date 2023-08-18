@@ -1,10 +1,10 @@
-# macroscopic-traffic-simulator
+# traffic-flow
 
 A Python module for macroscopic transport modelling; forecasting future traffic flows after major infrastructure projects.
 
 Installation:
 ```bash
-pip install git+https://github.com/petervanya/macroscopic-traffic-simulator.git
+pip install git+https://github.com/petervanya/traffic-flow.git
 ```
 
 ## Overview
@@ -63,14 +63,14 @@ Several sample networks are available:
 
 Loading an example network:
 ```python
-from mtsim.sample_networks import load_network_2
+from traffic_flow.sample_networks import load_network_2
 
 df_nodes, df_link_types, df_links = load_network_2()
 ```
 
 ### Simulation
 ```python
-from mtsim import MTM
+from traffic_flow import MTM
 
 # initialise the object
 model = MTM()
@@ -101,7 +101,7 @@ As a result of assignment, the `model.df_links` attribute obtains the `q` column
 This package enables tuning the generation and distribution parameters so as to achieve a minimal error between predicted and measured traffic flows. The objective function is the [GEH function](https://en.wikipedia.org/wiki/GEH_statistic).
 
 ```python
-from mtsim import MTM
+from traffic_flow import MTM
 
 model = MTM()
 model.read_data(df_nodes, df_link_types, df_links)
