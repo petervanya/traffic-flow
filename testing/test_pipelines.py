@@ -13,15 +13,16 @@ print(f'NetworkX version: {nx.__version__}')
 print(f'Quince version: {traffic_flow.__version__}')
 
 
-def test_network_1_nx():
-    from traffic_flow import MTMnx
+def test_network_1_networkx():
+    from traffic_flow import MTM
     from traffic_flow.sample_networks import load_network_1
 
     print('\nTesting NetworkX backend, network 1...')
 
     df_nodes, df_link_types, df_links = load_network_1()
     
-    model = MTMnx(verbose=True)
+    model = MTM(backend="networkx", verbose=True)
+    print("Backend:", model.backend)
     model.read_data(df_nodes, df_link_types, df_links)
     
     model.generate("main-stratum", "pop", "pop", 0.5)
@@ -33,15 +34,16 @@ def test_network_1_nx():
     print(model.df_links.head())
 
 
-def test_network_2_nx():
-    from traffic_flow import MTMnx
+def test_network_2_networkx():
+    from traffic_flow import MTM
     from traffic_flow.sample_networks import load_network_2
 
     print('\nTesting NetworkX backend, network 2...')
 
     df_nodes, df_link_types, df_links = load_network_2()
     
-    model = MTMnx(verbose=True)
+    model = MTM(backend="networkx", verbose=True)
+    print("Backend:", model.backend)
     model.read_data(df_nodes, df_link_types, df_links)
     
     model.generate("main-stratum", "pop", "pop", 0.5)
@@ -53,7 +55,7 @@ def test_network_2_nx():
     print(model.df_links.head())
 
 
-def test_network_1_ig():
+def test_network_1_igraph():
     from traffic_flow import MTM
     from traffic_flow.sample_networks import load_network_1
 
@@ -61,7 +63,8 @@ def test_network_1_ig():
 
     df_nodes, df_link_types, df_links = load_network_1()
     
-    model = MTM(verbose=True)
+    model = MTM(backend="igraph", verbose=True)
+    print("Backend:", model.backend)
     model.read_data(df_nodes, df_link_types, df_links)
     
     model.generate("main-stratum", "pop", "pop", 0.5)
@@ -73,7 +76,7 @@ def test_network_1_ig():
     print(model.df_links.head())
 
 
-def test_network_2_ig():
+def test_network_2_igraph():
     from traffic_flow import MTM
     from traffic_flow.sample_networks import load_network_2
     
@@ -81,7 +84,8 @@ def test_network_2_ig():
 
     df_nodes, df_link_types, df_links = load_network_2()
 
-    model = MTM(verbose=True)
+    model = MTM(backend="igraph", verbose=True)
+    print("Backend:", model.backend)
     model.read_data(df_nodes, df_link_types, df_links)
     
     model.generate("main-stratum", "pop", "pop", 0.5)
@@ -94,7 +98,7 @@ def test_network_2_ig():
 
 
 if __name__ == '__main__':
-    test_network_1_nx()
-    test_network_2_nx()
-    test_network_1_ig()
-    test_network_2_ig()
+    test_network_1_networkx()
+    test_network_2_networkx()
+    test_network_1_igraph()
+    test_network_2_igraph()
