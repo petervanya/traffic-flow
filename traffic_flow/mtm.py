@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 import time
 import igraph as ig
+import networkx as nx
 
-from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
 
 
 class MTM:
@@ -16,14 +17,29 @@ class MTM:
     compatible with standard transport modelling software packages.
     """
 
-    def __init__(self, v_intra=40.0, verbose=False):
+    def __init__(self, backend="igraph", v_intra=40.0, verbose=False):
         """
         Inputs
-        ======
-        - v_intra : intrazonal speed in kmh
-        - verbose : level of printing information
+        ------
+        - backend : str,
+            igraph or networkx
+        - v_intra : float
+            intrazonal speed in kmh
+        - verbose : bool
+            select True for more detailed information
         """
-        self.G = ig.Graph(directed=True)
+        backend = backend.lower()
+        if backend not in BACKENDS:
+            raise ValueError(f'choose backend from {BACKENDS}')
+        self.backend = backend
+
+        # initialise the graph object
+        if backend == 'igraph':
+            self.G = ig.Graph(directed=True)
+        elif backend == 'networkx':
+            self.G = nx.DiGraph()
+
+        # dictionaries storing matrices
         self.skims = {}  # skim matrices
         self.dmats = {}  # demand matrices
         # demand strata
@@ -114,8 +130,13 @@ class MTM:
         self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
 
         # assign to the graph
-        self.G.es["tcur"] = self.df_links["tcur"].values
-        self.G.es["vcur"] = self.df_links["vcur"].values
+        if self.backend == 'igraph':
+            self.G.es["tcur"] = self.df_links["tcur"].values
+            self.G.es["vcur"] = self.df_links["vcur"].values
+
+        elif self.backend == 'networkx':
+            nx.set_edge_attributes(self.G, self.df_links["tcur"], "tcur")
+            nx.set_edge_attributes(self.G, self.df_links["vcur"], "vcur")
 
     def _fill_graph(self):
         """Fill the graph with read-in nodes and links"""
@@ -123,22 +144,30 @@ class MTM:
         KS: making sure the graph is empty (needed when self.read_data is run
         multiple times in the code, but MTM does not initialise at every run)
         """
-        if len(self.G.vs) > 0:
-            self.G = ig.Graph(directed=True)
+        if self.backend == 'igraph':
+            if len(self.G.vs) > 0:
+                self.G = ig.Graph(directed=True)
 
-        # adding vertices
-        self.G.add_vertices(self.df_nodes.shape[0])
-        self.G.vs["id"] = self.df_nodes.index.values
-        for k, v in self.df_nodes.iteritems():
-            self.G.vs[k] = v.values
+            # adding vertices
+            self.G.add_vertices(self.df_nodes.shape[0])
+            self.G.vs["id"] = self.df_nodes.index.values
+            for k, v in self.df_nodes.iteritems():
+                self.G.vs[k] = v.values
 
-        # adding edges
-        for k, _ in self.df_links.iterrows():
-            self.G.add_edges(
-                [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
-            )
-        for k, v in self.df_links.iteritems():
-            self.G.es[k] = v.values
+            # adding edges
+            for k, _ in self.df_links.iterrows():
+                self.G.add_edges(
+                    [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
+                )
+            for k, v in self.df_links.iteritems():
+                self.G.es[k] = v.values
+
+        elif self.backend == 'networkx':
+            for k, v in self.df_nodes.iterrows():
+                self.G.add_node(k, **v)
+
+            for k, v in self.df_links.iterrows():
+                self.G.add_edge(k[0], k[1], **v)
 
     # =====
     # Trip generation
@@ -220,18 +249,27 @@ class MTM:
         - density : float, optional
             Average population density per zone
         """
-        assert kind in BASIC_SKIM_KINDS, "Choose kind among %s." % BASIC_SKIM_KINDS
+        if kind not in BASIC_SKIM_KINDS:
+            raise ValueError(f'Choose kind among {BASIC_SKIM_KINDS}')
 
-        # get shortest paths
-        paths = self.G.shortest_paths(
-            source=self.G.vs.select(is_zone_eq=True),
-            target=self.G.vs.select(is_zone_eq=True),
-            weights=kind,
-        )
+        # get shortest paths    
+        if self.backend == 'igraph':
+            paths = self.G.shortest_paths(
+                source=self.G.vs.select(is_zone_eq=True),
+                target=self.G.vs.select(is_zone_eq=True),
+                weights=kind,
+            )
 
-        self.skims[kind] = pd.DataFrame(paths)
-        self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
-        self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
+            self.skims[kind] = pd.DataFrame(paths)
+            self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
+            self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
+        
+        elif self.backend == 'networkx':
+            paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
+            
+            self.skims[kind] = pd.DataFrame(dict(paths)).loc[
+                self.df_zones.index, self.df_zones.index
+            ]
 
         # compute diagonal based on distance
         if diagonal == "density":
@@ -374,16 +412,17 @@ class MTM:
         
         Inputs
         ------
-        - imp : impedance (link attribute) for path search 
-            that is computed as a skim matrix
-        - kind : type of assignment
-        - ws : assignment weights
+        - imp : str
+            impedance (link attribute) for path search, one of skim matrices
+        - kind : str
+            type of assignment, now only incremental
+        - weights : iterable
+            assignment weights
         """
-        assert kind in ASSIGNMENT_KINDS, (
-            "choose assignment kind from %s" % ASSIGNMENT_KINDS
-        )
-
-        assert imp in BASIC_SKIM_KINDS, "choose impedance among %s" % BASIC_SKIM_KINDS
+        if kind not in ASSIGNMENT_KINDS:
+            raise ValueError(f"choose assignment from {ASSIGNMENT_KINDS}")
+        if imp not in BASIC_SKIM_KINDS:
+            raise ValueError(f"choose impedance among {BASIC_SKIM_KINDS}")
 
         weights = np.array(weights)
         weights = weights / weights.sum()  # normalise weights
@@ -397,29 +436,52 @@ class MTM:
         this caused the inconsistency of 1 run of the module with the module
         running in the loop if read_data was not in the loop
         """
-        self.G.es["q"] = 0.0
-        self.G.es["tcur"] = self.df_links["t0"].values
-        self.G.es["vcur"] = self.df_links["v0"].values
-        self.df_links["q"] = 0.0
+        if self.backend == 'igraph':
+            self.G.es["q"] = 0.0
+            self.G.es["tcur"] = self.df_links["t0"].values
+            self.G.es["vcur"] = self.df_links["v0"].values
+            self.df_links["q"] = 0.0
+        elif self.backend == 'networkx':
+            nx.set_edge_attributes(self.G, 0.0, "q")
 
+        # perform assignment
         if kind == "incremental":
             for wi, w in enumerate(weights):
                 if self.verbose:
-                    print("Assigning batch %i, weight %.2f ..." % (wi + 1, w))
-                vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
+                    print(f"Assigning batch {wi}, weight {w:.2f} ...")
 
-                for i in vs_zones:
-                    p = self.G.get_shortest_paths(
-                        v=i, to=vs_zones, weights=imp, output="epath"
+                if self.backend == 'igraph':
+                    vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
+
+                    for i in vs_zones:
+                        p = self.G.get_shortest_paths(
+                            v=i, to=vs_zones, weights=imp, output="epath"
+                        )
+                        dq = self.DM.loc[self.G.vs[i]["id"], :].values * w
+                        for j, _ in enumerate(dq):
+                            self.G.es[p[j]]["q"] += dq[j]
+
+                    self.df_links["q"] = self.G.es["q"]
+
+                elif self.backend == 'networkx':
+                    paths = dict(nx.all_pairs_dijkstra_path(self.G, weight=imp))
+
+                    for i in self.df_zones.index:
+                        for j in self.df_zones.index:
+                            p = paths[i][j]
+                            dq = self.DM.loc[i, j] * w
+                            for k, _ in enumerate(p[:-1]):
+                                self.G.edges[p[k], p[k + 1]]["q"] += dq
+
+                    self.df_q = nx.to_pandas_edgelist(self.G).set_index(
+                        ["source", "target"]
                     )
-                    dq = self.DM.loc[self.G.vs[i]["id"], :].values * w
 
-                    for j, _ in enumerate(dq):
-                        self.G.es[p[j]]["q"] += dq[j]
+                    self.df_links["q"] = self.df_q["q"]
 
-                self.df_links["q"] = self.G.es["q"]
                 self.compute_tcur_links()  # update current time and speed
 
+        # compuate precision metric wrt measured flows
         self._geh()
         self._var_geh()
 

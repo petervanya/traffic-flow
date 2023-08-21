@@ -17,6 +17,8 @@ def test_optimise():
 
     # first few steps
     model = MTM()
+    print("Backend:", model.backend)
+
     tic = time.time()
     model.read_data(df_nodes, df_link_types, df_links)
     model.generate("ALL", "pop", "pop", 0.5)
