@@ -1,5 +1,5 @@
 """
-Author: Katarina Simkova and Peter Vanya
+Authors: Katarina Simkova and Peter Vanya
 """
 import numpy as np
 import pandas as pd
@@ -8,6 +8,7 @@ import igraph as ig
 import networkx as nx
 
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
+from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
 
 
 class MTM:
@@ -30,13 +31,13 @@ class MTM:
         """
         backend = backend.lower()
         if backend not in BACKENDS:
-            raise ValueError(f'choose backend from {BACKENDS}')
+            raise ValueError(f"choose backend from {BACKENDS}")
         self.backend = backend
 
         # initialise the graph object
-        if backend == 'igraph':
+        if backend == "igraph":
             self.G = ig.Graph(directed=True)
-        elif backend == 'networkx':
+        elif backend == "networkx":
             self.G = nx.DiGraph()
 
         # dictionaries storing matrices
@@ -49,7 +50,7 @@ class MTM:
         )  # distribution params
         # optimisation results
         self.opt_params = pd.DataFrame(columns=["attr_param", "dist_param"])
-        self.opt_output = pd.DataFrame(columns=["sum_geh", "nit", "nfev", "success"])
+        self.opt_output = pd.DataFrame(columns=["error", "nit", "nfev", "success"])
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
@@ -57,10 +58,13 @@ class MTM:
     def read_data(self, nodes, link_types, links):
         """
         Inputs
-        ======
-        - Nodes : dataframe [is_zone, name, pop], index: id
-        - Link types : dataframe [type, type_name, v0, qmax, a, b]
-        - Links : dataframe [id, type, name, length, count], index: id_node_pair
+        ------
+        - Nodes : pd.dataframe
+            table containing columns as specified in `parameters.py`
+        - Link types : pd.dataframe
+            table containing columns as specified in `parameters.py`
+        - Links : pd.dataframe
+            table containing columns as specified in `parameters.py`
         """
         self.df_nodes = nodes.copy()
         self._verify_nodes()
@@ -70,7 +74,7 @@ class MTM:
         self.Nz = self.df_zones.shape[0]
 
         self.df_lt = link_types.copy()
-        self._verify_lt()
+        self._verify_link_types()
 
         self.df_links = links.copy()
         self._verify_links()
@@ -81,28 +85,27 @@ class MTM:
     def _verify_nodes(self):
         """Check that key columns are present"""
         assert np.isin(
-            ["id", "is_zone", "name", "pop"], self.df_nodes.columns
-        ).all(), "Node list does not have the expected structure."
+            COLS_NODES, self.df_nodes.columns
+        ).all(), f"node list does not contain expected columns: {COLS_NODES}"
 
-    def _verify_lt(self):
+    def _verify_link_types(self):
         """Verify columns"""
         assert np.isin(
-            ["type", "type_name", "v0", "qmax", "a", "b"], self.df_lt.columns
-        ).all(), "link type list does not have the expected structure"
+            COLS_LINK_TYPES, self.df_lt.columns
+        ).all(), f"link type list does not contain expected columns: {COLS_LINK_TYPES}"
 
     def _verify_links(self):
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
         assert np.isin(
-            ["id", "type", "name", "length", "count", "node_from", "node_to"],
-            self.df_links.columns,
-        ).all(), "Link list does not have the expected structure."
+            COLS_LINKS, self.df_links.columns,
+        ).all(), f"link list does not contain expected columns: {COLS_LINKS}"
 
     def _assign_link_data(self):
         """
         Assign the attributes of the link types to the links:
         [v0, qmax, alpha, beta]
-        Create new empty attributes:
+        Create new empty attributes for links:
         [t0, q, tcur, vcur]
         """
         # merge with link types
@@ -110,7 +113,9 @@ class MTM:
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
 
         # assign empty attributes
-        self.df_links["t0"] = self.df_links["length"] / self.df_links["v0"] * 60.0
+        self.df_links["t0"] = (
+            self.df_links["length"] / self.df_links["v0"] * 60.0
+        )  # minutes
         self.df_links["q"] = 0.0
         self.df_links["tcur"] = self.df_links["t0"]
         self.df_links["vcur"] = self.df_links["v0"]
@@ -130,11 +135,11 @@ class MTM:
         self.df_links["vcur"] = self.df_links["length"] / self.df_links["tcur"] * 60.0
 
         # assign to the graph
-        if self.backend == 'igraph':
+        if self.backend == "igraph":
             self.G.es["tcur"] = self.df_links["tcur"].values
             self.G.es["vcur"] = self.df_links["vcur"].values
 
-        elif self.backend == 'networkx':
+        elif self.backend == "networkx":
             nx.set_edge_attributes(self.G, self.df_links["tcur"], "tcur")
             nx.set_edge_attributes(self.G, self.df_links["vcur"], "vcur")
 
@@ -144,7 +149,7 @@ class MTM:
         KS: making sure the graph is empty (needed when self.read_data is run
         multiple times in the code, but MTM does not initialise at every run)
         """
-        if self.backend == 'igraph':
+        if self.backend == "igraph":
             if len(self.G.vs) > 0:
                 self.G = ig.Graph(directed=True)
 
@@ -162,7 +167,7 @@ class MTM:
             for k, v in self.df_links.iteritems():
                 self.G.es[k] = v.values
 
-        elif self.backend == 'networkx':
+        elif self.backend == "networkx":
             for k, v in self.df_nodes.iterrows():
                 self.G.add_node(k, **v)
 
@@ -202,7 +207,7 @@ class MTM:
         self.dstrat.loc[name] = [prod, attr, param]
 
     # =====
-    # Skim matrices
+    # Skim/impedance matrices
     # =====
     def compute_skims(self, diagonal="density", density=1000.0, diagonal_param=0.5):
         """
@@ -250,10 +255,10 @@ class MTM:
             Average population density per zone
         """
         if kind not in BASIC_SKIM_KINDS:
-            raise ValueError(f'Choose kind among {BASIC_SKIM_KINDS}')
+            raise ValueError(f"Choose kind among {BASIC_SKIM_KINDS}")
 
-        # get shortest paths    
-        if self.backend == 'igraph':
+        # get shortest paths
+        if self.backend == "igraph":
             paths = self.G.shortest_paths(
                 source=self.G.vs.select(is_zone_eq=True),
                 target=self.G.vs.select(is_zone_eq=True),
@@ -263,10 +268,10 @@ class MTM:
             self.skims[kind] = pd.DataFrame(paths)
             self.skims[kind].index = self.G.vs.select(is_zone_eq=True)["id"]
             self.skims[kind].columns = self.G.vs.select(is_zone_eq=True)["id"]
-        
-        elif self.backend == 'networkx':
+
+        elif self.backend == "networkx":
             paths = nx.all_pairs_dijkstra_path_length(self.G, weight=kind)
-            
+
             self.skims[kind] = pd.DataFrame(dict(paths)).loc[
                 self.df_zones.index, self.df_zones.index
             ]
@@ -285,7 +290,6 @@ class MTM:
                 self.skims[kind].values,
                 np.sqrt(self.df_zones["area"].values) * diagonal_param,
             )
-        #            raise NotImplementedError("Only 'density'-based diagonal available.")
 
         # adjust time-related skims
         if kind in ["t0", "tcur"]:
@@ -296,7 +300,7 @@ class MTM:
 
         # check for nan's or inf's
         if self.skims[kind].isin([np.nan, np.inf, -np.inf]).values.any():
-            print("Warning: nan's in skim matrix '%s', filling." % kind)
+            print(f"Warning: nan's in skim matrix '{kind}', filling with 1e6")
             self.skims[kind].replace([np.inf, -np.inf, np.nan], 1e6, inplace=True)
 
     def compute_skim_utility(self, name, params):
@@ -314,7 +318,7 @@ class MTM:
                 iter(beta)
             except TypeError:
                 print("power law parameters should be in a list")
-            assert len(beta) == 2, "power law function has two parameters"
+            assert len(beta) == 2, "power law function must have two parameters"
 
         if func == "exp":
             return np.exp(beta * C)
@@ -332,27 +336,34 @@ class MTM:
         
         Inputs
         ------
-        - ds : demand stratum
-        - C : cost function as skim matrix, t0, tcur, length or utility
-        - func : distribution function
-        - param : parameter of the distribution function
-        - n_iter : number of iterations
-        - balancing : normalisation of trips wrt production or attraction
-        - symm : symmetrise the demand matrix
+        - ds : str
+            demand stratum
+        - C : str
+            cost function as skim matrix, t0, tcur, length or utility
+        - func : str
+            distribution function
+        - param : float
+            parameter of the distribution function
+        - n_iter : int, optional
+            number of iterations
+        - balancing : str, optional
+            normalisation of trips wrt production or attraction
+        - symm : bool, optional
+            symmetrise the demand matrix
         """
-        assert ds in self.dstrat.index, "%s not found in demand strata" % ds
-        assert C in self.skims.keys(), "cost %s not found among skim matrices" % C
-        assert func in DIST_FUNCS, "choose distribution function from %s" % DIST_FUNCS
-        assert n_iter > 0, "number of iterations should be positive"
+        assert ds in self.dstrat.index, f"{ds} not found in demand strata"
+        assert C in self.skims.keys(), f"cost {C} not found among skim matrices"
+        assert func in DIST_FUNCS, f"choose distribution function from {DIST_FUNCS}"
+        assert n_iter > 0, "number of iterations must be positive number"
         assert balancing in [
             "production",
             "attraction",
-        ], "Incorrect choice of balancing."
-        assert symm in [True, False], "Choose True/False for matrix symmetrisation."
+        ], "incorrect choice of balancing"
+        assert symm in [True, False], "choose True/False for matrix symmetrisation"
         if func == "power" and param[0] >= 0.0:
-            print("warning: Parameter of decay should be < 0")
+            print("warning: parameter of decay should be < 0")
         elif func != "power" and param >= 0.0:
-            print("warning: Parameter of decay should be < 0")
+            print("warning: parameter of decay should be < 0")
 
         # define set of distribution parameters
         self.dpar.loc[ds] = [C, func, param, symm]
@@ -377,7 +388,7 @@ class MTM:
             T = T * np.outer(a, b)
             b = D / T.sum(0)
             if np.isnan(T).any():
-                print("Warning: nan's in OD matrix in iteration %i." % i)
+                print(f"warning: nan's in OD matrix in iteration {i}")
 
         # compute final mean average errors
         self.dist_errs = {
@@ -436,12 +447,12 @@ class MTM:
         this caused the inconsistency of 1 run of the module with the module
         running in the loop if read_data was not in the loop
         """
-        if self.backend == 'igraph':
+        if self.backend == "igraph":
             self.G.es["q"] = 0.0
             self.G.es["tcur"] = self.df_links["t0"].values
             self.G.es["vcur"] = self.df_links["v0"].values
             self.df_links["q"] = 0.0
-        elif self.backend == 'networkx':
+        elif self.backend == "networkx":
             nx.set_edge_attributes(self.G, 0.0, "q")
 
         # perform assignment
@@ -450,7 +461,7 @@ class MTM:
                 if self.verbose:
                     print(f"Assigning batch {wi}, weight {w:.2f} ...")
 
-                if self.backend == 'igraph':
+                if self.backend == "igraph":
                     vs_zones = [v.index for v in self.G.vs.select(is_zone_eq=True)]
 
                     for i in vs_zones:
@@ -463,7 +474,7 @@ class MTM:
 
                     self.df_links["q"] = self.G.es["q"]
 
-                elif self.backend == 'networkx':
+                elif self.backend == "networkx":
                     paths = dict(nx.all_pairs_dijkstra_path(self.G, weight=imp))
 
                     for i in self.df_zones.index:
@@ -481,49 +492,52 @@ class MTM:
 
                 self.compute_tcur_links()  # update current time and speed
 
-        # compuate precision metric wrt measured flows
-        self._geh()
-        self._var_geh()
+    def compute_error(self, measured_col="count"):
+        """Compuate precision metric wrt measured flows"""
+        if measured_col not in self.df_links.columns:
+            raise ValueError(f"{measured_col} not found among link attributes")
+        self._geh(measured_col)
+        self._var_geh(measured_col)
 
     # =====
     # Error-measuring tools
     # =====
-    def _geh(self):
+    def _geh(self, measured_col):
         """Compute the GEH error of each link with a measurement"""
         self.df_links["geh"] = np.sqrt(
             2.0
-            * (self.df_links["q"] - self.df_links["count"]) ** 2
-            / (self.df_links["q"] + self.df_links["count"])
+            * (self.df_links["q"] - self.df_links[measured_col]) ** 2
+            / (self.df_links["q"] + self.df_links[measured_col])
             / 10.0
         )
 
-    def _geh_vehkm(self):
+    def _geh_vehkm(self, measured_col):
         """Compute GEH adjusted for section lengths"""
         l = self.df_links["length"]
         self.df_links["geh"] = np.sqrt(
             2.0
-            * (self.df_links["q"] * l - self.df_links["count"] * l) ** 2
-            / (self.df_links["q"] * l + self.df_links["count"] * l)
+            * (self.df_links["q"] * l - self.df_links[measured_col] * l) ** 2
+            / (self.df_links["q"] * l + self.df_links[measured_col] * l)
             / 10.0
         )
 
-    def _var_geh(self):
+    def _var_geh(self, measured_col):
         """Compute GEH as a variance without the square root"""
         self.df_links["var_geh"] = (
             2.0
-            * (self.df_links["q"] - self.df_links["count"]) ** 2
-            / (self.df_links["q"] + self.df_links["count"])
+            * (self.df_links["q"] - self.df_links[measured_col]) ** 2
+            / (self.df_links["q"] + self.df_links[measured_col])
             / 10.0
         )
 
-    def _var_geh_vehkm(self):
+    def _var_geh_vehkm(self, measured_col):
         """Compute GEH as a variance without the square root and 
         adjusted for section lengths"""
         l = self.df_links["length"]
         self.df_links["var_geh"] = (
             2.0
-            * (self.df_links["q"] * l - self.df_links["count"] * l) ** 2
-            / (self.df_links["q"] * l + self.df_links["count"] * l)
+            * (self.df_links["q"] * l - self.df_links[measured_col] * l) ** 2
+            / (self.df_links["q"] * l + self.df_links[measured_col] * l)
             / 10.0
         )
 
@@ -604,10 +618,14 @@ class MTM:
                 seed=seed,
                 maxiter=n_iter,
             )
+
         elif optfun == "basinhopping":
             # from scipy.optimize import basinhopping
             # res = basinhopping(self._obj_function, x0=x0, niter=Nit, \
             #     minimizer_kwargs=optargs, bounds=bounds, seed=seed)
+            raise NotImplementedError
+
+        elif optfun == "gradient_descent":
             raise NotImplementedError
         toc = time.time()
 
@@ -620,21 +638,24 @@ class MTM:
 
         self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
 
-    def _obj_function(self, z, imp, weights=[50, 50]):
+    def _obj_function(self, z, imp, weights=[50, 50], measured_col="count"):
         """
         The sum of all GEH differences between traffic counts and modelled
         flows on links that contain the counts.
         Serves as the objective function for the optimisation.
         Goes through all transport modelling steps.
 
-        Input
-        =====
-        - z : array of parameters to optimise
-        - imp : impedance kind (t0, tcur, l)
-        - ws : assignment weights
+        Inputs
+        ------
+        - z : iterable
+            array of parameters to optimise
+        - imp : str
+            impedance kind: t0, tcur, length
+        - ws : iterable
+            assignment weights
         """
         # basic checks
-        assert len(self.dstrat) > 0, "No demand strata defined"
+        assert len(self.dstrat) > 0, "no demand strata defined"
 
         # trip generation
         for m, n in enumerate(self.dstrat.index):
@@ -655,15 +676,16 @@ class MTM:
 
         relevant = self.df_links[
             np.logical_and(
-                (np.logical_not(np.isnan(self.df_links["count"]))),
-                (self.df_links["count"] != 0),
+                (np.logical_not(np.isnan(self.df_links[measured_col]))),
+                (self.df_links[measured_col] != 0),
             )
         ]
 
+        # compute error
         gehs = np.sqrt(
             2.0
-            * (relevant["q"].values - relevant["count"].values) ** 2
-            / (relevant["q"].values + relevant["count"].values)
+            * (relevant["q"].values - relevant[measured_col].values) ** 2
+            / (relevant["q"].values + relevant[measured_col].values)
         ) / np.sqrt(10.0)
 
         #     reg = alpha*(\
@@ -671,7 +693,7 @@ class MTM:
         #                         /self.dmats["all"].sum().sum() - xexp)**2
         #     vals = np.append(vals, suma)
 
-        return np.sum(gehs)  # + reg
+        return np.mean(gehs)  # + reg
 
     # =====
     # Processing functions

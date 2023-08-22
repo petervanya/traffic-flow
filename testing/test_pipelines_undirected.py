@@ -10,7 +10,7 @@ print(f'Numpy version: {np.__version__}')
 print(f'Pandas version: {pd.__version__}')
 print(f'Igraph version: {ig.__version__}')
 print(f'NetworkX version: {nx.__version__}')
-print(f'Quince version: {traffic_flow.__version__}')
+print(f'traffic-flow version: {traffic_flow.__version__}')
 
 
 def test_network_1_nx_undirected():
