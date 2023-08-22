@@ -48,7 +48,7 @@ In the simulation, these tables are read into a graph structure, which is then u
 
 Each table has a set of columns that must be present:
 - nodes: `[id, is_zone, name, pop]` (`pop` represents the population as a basic demand stratum)
-- links: `[id, node_from, node_to, type, name, length, count]` (`count` for traffic flows can be empty)
+- links: `[id, node_from, node_to, type, length]` (ideally also include `count` for traffic flows)
 - link types: `[type, type_name, v0, qmax, a, b]`
 
 To better appreciate the logic of the input tables, please download one of the sample inputs (see below).
