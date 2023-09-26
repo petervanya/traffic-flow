@@ -66,20 +66,30 @@ class MTM:
         - Links : pd.dataframe
             table containing columns as specified in `parameters.py`
         """
+        if self.verbose:
+            print('Preparing nodes...')
         self.df_nodes = nodes.copy()
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
 
+        if self.verbose:
+            print('Prepaging zones...')
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
 
+        if self.verbose:
+            print('Preparing link types...')
         self.df_lt = link_types.copy()
         self._verify_link_types()
 
+        if self.verbose:
+            print('Preparing link types...')
         self.df_links = links.copy()
         self._verify_links()
         self._assign_link_data()
 
+        if self.verbose:
+            print('Building the network graph...')
         self._fill_graph()
 
     def _verify_nodes(self):
@@ -161,9 +171,13 @@ class MTM:
 
             # adding edges
             for k, _ in self.df_links.iterrows():
-                self.G.add_edges(
-                    [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
-                )
+                try:
+                    self.G.add_edges(
+                        [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
+                    )
+                except ValueError as e:
+                    raise ValueError(f'{e}, adding edges {k[0]}, {k[1]}')
+
             for k, v in self.df_links.iteritems():
                 self.G.es[k] = v.values
 
