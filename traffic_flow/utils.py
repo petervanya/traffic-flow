@@ -9,7 +9,7 @@ import pandas as pd
 import geopandas as gpd
 
 
-def read_inputs_excel(fname, offset=1_000_000):
+def read_inputs_excel(fname, offset=1_000_000, verbose=False):
     """
     Read inputs from excel file with raw sheets with PTV Visum tables with renamed columns:
     - zones
@@ -25,6 +25,7 @@ def read_inputs_excel(fname, offset=1_000_000):
     -----
     - fname : str, input excel file
     - offset : int, optional, number for offsetting the counter for nodes and connectors
+    - verbose : bool
     
     Returns
     -------
@@ -40,6 +41,8 @@ def read_inputs_excel(fname, offset=1_000_000):
     df0_nodes = xls.parse("nodes")
 
     # merging zones and nodes
+    if verbose:
+        print('Preparing zones and nodes...')
     df0_zones["is_zone"] = True
     # df0_zones["id"] += offset  # FUTURE
 
@@ -50,17 +53,30 @@ def read_inputs_excel(fname, offset=1_000_000):
     df_nodes = df_nodes.set_index("id").reset_index()
 
     # merging links and connectors
+    if verbose:
+        print('Preparing links...')
     df0_links["node_from"] += offset
     df0_links["node_to"] += offset
 
+    if verbose:
+        print('Preparing connectors...')
     df0_conn["node"] += offset  # CHANGE
     # df0_conn['zone'] += offset  # FUTURE
+
     df_O = df0_conn[df0_conn["direction"] == "O"].copy()
+    df_D = df0_conn[df0_conn["direction"] == "D"].copy()
+    
+    if len(df_O) == 0:
+        print(f'Warning: zero "O" connectors, filling from "D"')
+        df_O = df_D.copy()
+    if len(df_D) == 0:
+        print(f'Warning: zero "D" connectors, filling from "O"')
+        df_D = df_O.copy()
+        
     df_O["node_from"] = df_O["node"]
     df_O["node_to"] = df_O["zone"]
     df_O["id"] = np.arange(offset, offset + len(df_O))
 
-    df_D = df0_conn[df0_conn["direction"] == "D"].copy()
     df_D["node_from"] = df_D["zone"]
     df_D["node_to"] = df_D["node"]
     df_D["id"] = np.arange(offset, offset + len(df_D))
@@ -133,15 +149,25 @@ def read_inputs_shapefile(basepath, basename, offset=1_000_000, verbose=False):
     df_connector['NODENO'] += offset
 
     df_O = df_connector.query('DIRECTION == "O"').copy()
-    df_O["node_from"] = df_O["NODENO"]
-    df_O["node_to"] = df_O["ZONENO"]
-    df_O["id"] = np.arange(offset, offset + len(df_O))
-
     df_D = df_connector.query('DIRECTION == "D"').copy()
-    df_D["node_from"] = df_D["ZONENO"]
-    df_D["node_to"] = df_D["NODENO"]
-    df_D["id"] = np.arange(offset, offset + len(df_D))
 
+    if len(df_O) == 0:
+        print(f'Warning: zero "O" connectors, filling from "D"')
+        df_O = df_D.copy()
+
+    if len(df_D) == 0:
+        print(f'Warning: zero "D" connectors, filling from "O"')
+        df_D = df_O.copy()
+    
+    else:    
+        df_O["node_from"] = df_O["NODENO"]
+        df_O["node_to"] = df_O["ZONENO"]
+        df_O["id"] = np.arange(offset, offset + len(df_O))
+        
+        df_D["node_from"] = df_D["ZONENO"]
+        df_D["node_to"] = df_D["NODENO"]
+        df_D["id"] = np.arange(offset, offset + len(df_D))
+        
     df_connector = pd.concat([df_O, df_D], sort=False).drop(["NODENO", "ZONENO", "DIRECTION"], 1)
 
     df_connector['LENGTH'] = df_connector['LENGTH'].map(lambda x: float(x.rstrip('km')))
