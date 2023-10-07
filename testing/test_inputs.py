@@ -25,8 +25,8 @@ def test_reading_csv():
     toc = time.time()
     print("Basic cycle done. Time: %.3f s" % (toc - tic))
 
-def test_reading_shapefile():
-    print('Testing shapefile reading...')
+def test_reading_shapefile_ptv():
+    print('Testing PTV shapefile reading...')
     basepath = '/Users/peter/Tatra/UHP/Res/Transport_Models/Data/Shapefiles_I51/nulovy_stav/'
     basename = 'I51_I76_siet_nulovy_stav'
     df_nodes, df_link_types, df_links = read_inputs_shapefile(basepath, basename)
@@ -46,4 +46,4 @@ def test_reading_shapefile():
 
 if __name__ == '__main__':
     test_reading_csv()
-    test_reading_shapefile()
+    test_reading_shapefile_ptv()
