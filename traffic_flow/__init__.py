@@ -3,4 +3,4 @@ from .mtm_ig_undirected import MTMUndirected
 
 from .mtm import MTM
 
-__version__ = "0.1.2"
+__version__ = "0.1.4"
