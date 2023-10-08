@@ -186,6 +186,17 @@ def read_inputs_shapefile(basepath, basename, offset=1_000_000, verbose=False):
     df_lt['a'] = 0.15
     df_lt['b'] = 4.0
     df_lt['type_name'] = 'undefined'
+
+    # add connector link type
+    df_lt = df_lt.append({
+        'type': 0,
+        'qmax': 20000,
+        'v0': 40.0,
+        'num_lanes': 4,
+        'a': 0.15,
+        'b': 4.0,
+        'type_name': 'conn',
+}, ignore_index=True)
     
     # merge into trafficflow structure
     if verbose:
