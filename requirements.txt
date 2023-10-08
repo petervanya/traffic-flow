@@ -2,5 +2,6 @@ networkx==2.5
 numpy==1.21.6
 scipy==1.6.1
 pandas==1.2.4
+geopandas==0.10.2
 python-igraph==0.8.2
 openpyxl==3.0.10

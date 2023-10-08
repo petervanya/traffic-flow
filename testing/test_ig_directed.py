@@ -26,7 +26,9 @@ def test_ig_directed():
     mtm.compute_skims()
     mtm.distribute("all", "t0", "exp", -0.1, balancing="production")
     mtm.assign("t0")
-    print(mtm.df_links["geh"].mean())
+    print('Mean model flow:', mtm.df_links["q"].mean())
+    mtm.compute_error()
+    print('Mean error:', mtm.df_links["geh"].mean())
 
     print("Attraction balancing with any mobility (should be same)")
     mtm.read_data(df_n, df_lt, df_l)
@@ -34,7 +36,9 @@ def test_ig_directed():
     mtm.compute_skims()  # diagonal="area")
     mtm.distribute("all", "t0", "exp", -0.1, balancing="attraction")
     mtm.assign("t0")
-    print(mtm.df_links["geh"].mean())
+    print('Mean model flow:', mtm.df_links["q"].mean())
+    mtm.compute_error()
+    print('Mean error:', mtm.df_links["geh"].mean())
 
 
 if __name__ == '__main__':

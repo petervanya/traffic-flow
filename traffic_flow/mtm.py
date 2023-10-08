@@ -66,20 +66,30 @@ class MTM:
         - Links : pd.dataframe
             table containing columns as specified in `parameters.py`
         """
+        if self.verbose:
+            print('Preparing nodes...')
         self.df_nodes = nodes.copy()
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
 
+        if self.verbose:
+            print('Prepaging zones...')
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
 
+        if self.verbose:
+            print('Preparing link types...')
         self.df_lt = link_types.copy()
         self._verify_link_types()
 
+        if self.verbose:
+            print('Preparing link types...')
         self.df_links = links.copy()
         self._verify_links()
         self._assign_link_data()
 
+        if self.verbose:
+            print('Building the network graph...')
         self._fill_graph()
 
     def _verify_nodes(self):
@@ -161,9 +171,13 @@ class MTM:
 
             # adding edges
             for k, _ in self.df_links.iterrows():
-                self.G.add_edges(
-                    [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
-                )
+                try:
+                    self.G.add_edges(
+                        [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
+                    )
+                except ValueError as e:
+                    raise ValueError(f'{e}, adding edges {k[0]}, {k[1]}')
+
             for k, v in self.df_links.iteritems():
                 self.G.es[k] = v.values
 
@@ -209,7 +223,7 @@ class MTM:
     # =====
     # Skim/impedance matrices
     # =====
-    def compute_skims(self, diagonal="density", density=1000.0, diagonal_param=0.5):
+    def compute_skims(self, diagonal="density", density=1000.0, diagonal_param=0.5, fillna=True):
         """
         Compute skim matrices, choose from the following:
         - "length" : distance between zones
@@ -220,6 +234,7 @@ class MTM:
             "diagonal": diagonal,
             "density": density,
             "diagonal_param": diagonal_param,
+            "fillna": fillna,
         }
 
         self._compute_skim_basic("length", **kw)
@@ -227,7 +242,7 @@ class MTM:
         self._compute_skim_basic("tcur", **kw)
 
     def _compute_skim_basic(
-        self, kind, diagonal="density", density=1000.0, diagonal_param=0.5
+        self, kind, diagonal="density", density=1000.0, diagonal_param=0.5, fillna=True
     ):
         """
         General method to compute skim matrices from basic quantities
@@ -253,6 +268,8 @@ class MTM:
             Parameter to scale the distance computed from the area
         - density : float, optional
             Average population density per zone
+        - fillna : bool, optional
+            True if existing nan values are to be filled by a large number
         """
         if kind not in BASIC_SKIM_KINDS:
             raise ValueError(f"Choose kind among {BASIC_SKIM_KINDS}")
@@ -300,8 +317,17 @@ class MTM:
 
         # check for nan's or inf's
         if self.skims[kind].isin([np.nan, np.inf, -np.inf]).values.any():
-            print(f"Warning: nan's in skim matrix '{kind}', filling with 1e6")
-            self.skims[kind].replace([np.inf, -np.inf, np.nan], 1e6, inplace=True)
+            vals = np.prod(self.skims[kind].shape)
+            vals_bad = np.logical_or(
+                np.isinf(self.skims[kind].values),
+                np.isnan(self.skims[kind].values)
+            ).sum()
+            pc = vals_bad / vals * 100
+            if fillna:
+                self.skims[kind].replace([np.inf, -np.inf, np.nan], 1e6, inplace=True)
+                print(f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%) filling with 1e6")
+            else:
+                print(f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%)")
 
     def compute_skim_utility(self, name, params):
         """Compute the utility skim matrix composed of several

@@ -56,7 +56,7 @@ To better appreciate the logic of the input tables, please download one of the s
 
 ## Example
 
-### Model inputs
+### Sample inputs
 Several sample networks are available:
 * Network 1: minimal setting, 4 zones, 8 links
 * Network 2: larger area, 12 zones, 42 links
@@ -66,6 +66,22 @@ Loading an example network:
 from traffic_flow.sample_networks import load_network_2
 
 df_nodes, df_link_types, df_links = load_network_2()
+```
+
+### Reading inputs from PTV Visum
+Alternatively, it is possible to load the shapefiles exported from PTV Visum.
+Assuming the modelling project is stored in `project-path`, the following shapefiles are required:
+- `project-path/myproject_node.SHP`
+- `project-path/myproject_zone_centropid.SHP`
+- `project-path/myproject_link.SHP`
+- `project-path/myproject_connector.SHP`
+
+```python
+from traffic_flow.utils import read_inputs_shapefile
+
+basepath = 'project-path'
+basename = 'myproject'
+df_nodes, df_link_types, df_links = read_inputs_shapefile(basepath, basename)
 ```
 
 ### Simulation
@@ -94,20 +110,21 @@ model.distribute("stratum-1", "tcur", "exp", -0.02)
 model.assign("tcur")
 ```
 
-As a result of assignment, the `model.df_links` attribute obtains the `q` column with predicted traffic flows.
+As a result of assignment, the `model.df_links` attribute obtains the `q` column with modelled traffic flows.
 
 
 ## Data-driven optimisation of model parameters
-This package enables tuning the generation and distribution parameters so as to achieve a minimal error between predicted and measured traffic flows. The objective function is the [GEH function](https://en.wikipedia.org/wiki/GEH_statistic).
+As an extra vital feature, which is absent in standard transport modelling software, `traffic-flow` enables tuning the generation and distribution parameters in order to minimise error between predicted and measured traffic flows. This is where machine learning meets transport modelling to leverage the use of cheap data (automatic traffic flow counts) to bypass expensive travel surveys and expert time required for model calibration.
 
+The modelling pipeline now changes as follows:
 ```python
 from traffic_flow import MTM
 
 model = MTM()
 model.read_data(df_nodes, df_link_types, df_links)
-model.generate("stratum-1", "pop", "pop", 0.5)
+model.generate("stratum-1", "pop", "pop", 0.5)  # parameter
 model.compute_skims()
-model.distribute("stratum-1", "tcur", "exp", -0.02)
+model.distribute("stratum-1", "tcur", "exp", -0.02)  # parameter
 
 # optimise using 10 iterations
 model.optimise(n_iter=10)
@@ -122,6 +139,8 @@ Get the results:
 | stratum-1 |     0.699951 |   -0.0581738 |
 
 After optimisation, trip generation changed to 0.7 and the distribution exponent to -0.06 respectively.
+
+The objective function is the [GEH function](https://en.wikipedia.org/wiki/GEH_statistic).
 
 Currently [dual annealing](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.dual_annealing.html)
 is the only available global optimisation method, others can be added upon request.
