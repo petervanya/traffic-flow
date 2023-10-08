@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "traffic-flow"
-version = "0.1.4"
+version = "0.2.0"
 description = "Macroscopic transport modelling; forecasting future traffic flows on new roads"
 readme = "README.md"
 authors = [
