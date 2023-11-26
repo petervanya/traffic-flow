@@ -5,28 +5,31 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "traffic-flow"
 version = "0.2.1"
-description = "Macroscopic transport modelling; forecasting future traffic flows on new roads"
+description = "Macroscopic transport modelling; forecasting traffic flows on roads"
 readme = "README.md"
 authors = [
     { name = "Peter Vanya", email = "peter.vanya@gmail.com" },
 ]
 license = { file = "LICENSE" }
+keywords = ["traffic", "flow", "modelling", "forecast", "optimisation", "transport"]
 classifiers = [
+    'Development Status :: 3 - Alpha',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Software Development :: Libraries',
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
-keywords = ["traffic", "flow", "modelling", "prediction", "optimisation", "transport"]
 requires-python = ">=3.7"
 dependencies = [
     "numpy>=1.21",
     "scipy>=1.6.1",
     "pandas>=1.2, <2.0",
     "geopandas>=0.10.2",
-    "python-igraph>=0.8",
-    "networkx>=2.5",
     "openpyxl>=3.0.10",
+    "networkx>=2.5",
+    "python-igraph>=0.8, <0.10",
 ]
 
 [project.optional-dependencies]
@@ -37,3 +40,4 @@ package-dir = {"" = "traffic_flow"}
 
 [project.urls]
 Homepage = "https://github.com/petervanya/traffic-flow"
+Issues = "https://github.com/petervanya/traffic-flow/issues"
