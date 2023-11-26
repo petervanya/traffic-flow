@@ -33,8 +33,8 @@ setuptools.setup(
         'scipy>=1.6',
         'pandas>=1.2, <2.0',
         'geopandas>=0.10.2',
-        'python-igraph>=0.8.2',
-        'networkx>=2.5',
         'openpyxl>=3.0.10',
+        'networkx>=2.5',
+        'python-igraph>=0.8, <0.10',
     ],
 )
