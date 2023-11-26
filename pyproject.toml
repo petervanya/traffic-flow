@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "traffic-flow"
-version = "0.2.0"
+version = "0.2.1"
 description = "Macroscopic transport modelling; forecasting future traffic flows on new roads"
 readme = "README.md"
 authors = [
@@ -21,10 +21,10 @@ keywords = ["traffic", "flow", "modelling", "prediction", "optimisation", "trans
 requires-python = ">=3.7"
 dependencies = [
     "numpy>=1.20",
-    "pandas>=1.2",
-    "numpy-financial>=1.0",
-    "python-igraph>=0.8",
-    "networkx==2.0",
+    "pandas>=1.2, <2.0",
+    "numpy-financial>=1.0.0",
+    "python-igraph>=0.9",
+    "networkx>=2.0",
     "openpyxl>=3.0.10",
 ]
 
