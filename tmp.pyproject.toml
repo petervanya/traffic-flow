@@ -20,11 +20,12 @@ classifiers = [
 keywords = ["traffic", "flow", "modelling", "prediction", "optimisation", "transport"]
 requires-python = ">=3.7"
 dependencies = [
-    "numpy>=1.20",
+    "numpy>=1.21",
+    "scipy>=1.6.1",
     "pandas>=1.2, <2.0",
-    "numpy-financial>=1.0.0",
-    "python-igraph>=0.9",
-    "networkx>=2.0",
+    "geopandas>=0.10.2",
+    "python-igraph>=0.8",
+    "networkx>=2.5",
     "openpyxl>=3.0.10",
 ]
 
