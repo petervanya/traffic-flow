@@ -164,22 +164,46 @@ class MTM:
                 self.G = ig.Graph(directed=True)
 
             # adding vertices
-            self.G.add_vertices(self.df_nodes.shape[0])
-            self.G.vs["id"] = self.df_nodes.index.values
-            for k, v in self.df_nodes.iteritems():
-                self.G.vs[k] = v.values
+            att_nodes = {}
+            att_nodes['id'] = self.df_nodes.index
+            for k, v in self.df_nodes.items():
+                att_nodes[k] = v.values
+
+            self.G.add_vertices(self.df_nodes.shape[0],
+                                attributes=att_nodes)
 
             # adding edges
-            for k, _ in self.df_links.iterrows():
-                try:
-                    self.G.add_edges(
-                        [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
-                    )
-                except ValueError as e:
-                    raise ValueError(f'{e}, adding edges {k[0]}, {k[1]}')
+            # create mapping between node index and id attribute
+            nodes_to_vertices = pd.DataFrame(
+                {'id': self.G.vs['id'], 'index': self.G.vs.indices})
+            nodes_to_vertices = nodes_to_vertices.set_index('id')
 
-            for k, v in self.df_links.iteritems():
-                self.G.es[k] = v.values
+            self.df_links = self.df_links.reset_index()
+            self.df_links['vertex_from'] = nodes_to_vertices.loc[
+                self.df_links['node_from']].values
+            self.df_links['vertex_to'] = nodes_to_vertices.loc[
+                self.df_links['node_to']].values
+
+            self.df_links = self.df_links.set_index(
+                ['node_from', 'node_to'])
+
+            # get list of all graph edges
+            list_edges = zip(self.df_links['vertex_from'],
+                             self.df_links['vertex_to'])
+
+            # drop temporary columns
+            self.df_links = self.df_links.drop(
+                columns=['vertex_from', 'vertex_to'])
+
+            att_links = {}
+            for k, v in self.df_links.items():
+                att_links[k] = v.values
+
+            self.G.add_edges(list_edges,
+                             attributes=att_links)
+
+            del att_links
+            del att_nodes
 
         elif self.backend == "networkx":
             for k, v in self.df_nodes.iterrows():
