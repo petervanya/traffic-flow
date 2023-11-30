@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setuptools.setup(
     name='traffic-flow',
-    version='0.2.1',
+    version='0.2.2',
     author='Peter Vanya',
     author_email='peter.vanya@gmail.com',
     license='GPLv3',
