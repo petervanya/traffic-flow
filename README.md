@@ -4,6 +4,10 @@ A Python module for macroscopic transport modelling; forecasting future traffic 
 
 Installation:
 ```bash
+pip install traffic-flow
+```
+or:
+```bash
 pip install git+https://github.com/petervanya/traffic-flow.git
 ```
 
