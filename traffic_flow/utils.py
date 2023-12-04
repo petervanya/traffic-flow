@@ -81,7 +81,7 @@ def read_inputs_excel(fname, offset=1_000_000, verbose=False):
     df_D["node_to"] = df_D["node"]
     df_D["id"] = np.arange(offset, offset + len(df_D))
 
-    df_conn = pd.concat([df_O, df_D], sort=False).drop(["node", "zone", "direction"], 1)
+    df_conn = pd.concat([df_O, df_D], sort=False).drop(["node", "zone", "direction"], axis=1)
     df_conn.sort_values(by="id", inplace=True)
     df_conn = df_conn.reindex(columns=df0_links.columns)
 
@@ -173,7 +173,7 @@ def read_inputs_shapefile(basepath, basename, offset=1_000_000, verbose=False):
         df_D["id"] = np.arange(offset, offset + len(df_D))
 
     df_connector = pd.concat([df_O, df_D], sort=False).drop(
-        ["NODENO", "ZONENO", "DIRECTION"], 1
+        ["NODENO", "ZONENO", "DIRECTION"], axis=1
     )
 
     df_connector["LENGTH"] = df_connector["LENGTH"].map(lambda x: float(x.rstrip("km")))
@@ -193,8 +193,9 @@ def read_inputs_shapefile(basepath, basename, offset=1_000_000, verbose=False):
     # add connector link type
     if 0 not in df_lt["type"].unique():
         print("Connector type 0 not defined, adding type 0 with default values...")
-        df_lt = df_lt.append(
-            {
+        df_lt = pd.concat([
+            df_lt,
+            pd.DataFrame([{
                 "type": 0,
                 "qmax": 20000,
                 "v0": 40.0,
@@ -202,7 +203,7 @@ def read_inputs_shapefile(basepath, basename, offset=1_000_000, verbose=False):
                 "a": 0.15,
                 "b": 4.0,
                 "type_name": "conn",
-            },
+            }])],
             ignore_index=True,
         )
 
