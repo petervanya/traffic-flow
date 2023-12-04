@@ -23,18 +23,18 @@ setuptools.setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.10',
     packages=setuptools.find_packages(),
     package_data={
         '': ['examples/network*.xlsx']
     },
     install_requires=[
-        'numpy>=1.21',
-        'scipy>=1.6',
-        'pandas>=1.2, <2.0',
-        'geopandas>=0.10.2',
-        'openpyxl>=3.0.10',
-        'networkx>=2.5',
-        'python-igraph>=0.8, <0.10',
+        'numpy>=1.24',
+        'scipy>=1.10.1',
+        'pandas>=2.0.3',
+        'geopandas>=0.12.2',
+        'openpyxl>=3.1.2',
+        'networkx>=3.2.1',
+        'python-igraph>=0.11.3',
     ],
 )
