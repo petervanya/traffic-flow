@@ -121,7 +121,7 @@ class MTMUndirected:
         # adding vertices
         self.G.add_vertices(self.df_nodes.shape[0])
         self.G.vs["id"] = self.df_nodes.index.values
-        for k, v in self.df_nodes.iteritems():
+        for k, v in self.df_nodes.items():
             self.G.vs[k] = v.values
 
         # adding edges
@@ -129,7 +129,7 @@ class MTMUndirected:
             self.G.add_edges(
                 [(self.G.vs.find(id=k[0]).index, self.G.vs.find(id=k[1]).index)]
             )
-        for k, v in self.df_links.iteritems():
+        for k, v in self.df_links.items():
             self.G.es[k] = v.values
 
     # =====
