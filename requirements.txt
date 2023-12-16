@@ -1,7 +1,7 @@
-numpy~=1.21.6
-pandas~=1.2.4
-scipy~=1.6.1
-geopandas~=0.10.2
-networkx~=2.5
-python-igraph~=0.9.1
-openpyxl==3.0.10
+numpy~=1.24.1
+pandas~=2.0.3
+geopandas~=0.12.2
+openpyxl~=3.1.2
+python-igraph~=0.11.3
+networkx~=3.2.1
+scipy~=1.11.4

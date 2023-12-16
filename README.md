@@ -152,7 +152,8 @@ is the only available global optimisation method, others can be added upon reque
 
 ## Contributions
 - Katarína Šimková, University of Glasgow/Vrije Universiteit Brussel
+- Patrik Turzák, World Bank
 
-Started as a side project during an internship at the Ministry of Finance of Slovakia.
+Started as a side project on a summer internship at the Ministry of Finance of Slovakia.
 
 To contribute, please fork the repo, make *reasonable* changes (ideally contact me at `peter.vanya~gmail` before) and create a pull request.
