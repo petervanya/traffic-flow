@@ -23,7 +23,7 @@ setuptools.setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
     ],
-    python_requires='>=3.10',
+    python_requires='>=3.9',
     packages=setuptools.find_packages(),
     package_data={
         '': ['examples/network*.xlsx']
