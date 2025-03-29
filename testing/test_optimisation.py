@@ -11,7 +11,7 @@ from traffic_flow import MTM
 from traffic_flow.sample_networks import load_network_2
 
 
-def test_optimise():
+def test_optimise(method, x0=None):
     # loading data
     df_nodes, df_link_types, df_links = load_network_2()
 
@@ -29,7 +29,7 @@ def test_optimise():
 
     # optimisation
     tic = time.time()
-    model.optimise(n_iter=10)
+    model.optimise(optfun=method, n_iter=10, x0=x0)
     toc = time.time()
 
     print("Optimisation done. Time: %.3f s" % (toc - tic))
@@ -38,4 +38,5 @@ def test_optimise():
 
 
 if __name__ == "__main__":
-    test_optimise()
+    # test_optimise('dual-annealing')
+    test_optimise("dual-annealing", x0=[0.07, -1e-3])
