@@ -672,8 +672,33 @@ class MTM:
                 maxiter=n_iter,
             )
 
-        elif optfun == "gradient-descent":
-            raise NotImplementedError
+        # elif optfun == "gradient-descent":
+        #     """Optimize using gradient descent with given dh"""
+        #     thermo = 10
+        #     lmbda = 1e-7
+        #     decay = 0.99
+        #     print(thermo, lmbda, decay)
+
+        #     if x0 is None:
+        #         raise ValueError(f"gradient descent requires x0")
+
+        #     X = np.zeros((n_iter + 1, len(x0)))
+        #     X[0] = x0
+        #     f = np.zeros(n_iter + 1)
+        #     f[0] = self._obj_function(x0, *optargs)
+        #     print(f"Starting gradient descent: {f[0]}, {X[0]}")
+
+        #     for i in range(n_iter):
+        #         G = grad(self._obj_function, X[i - 1], *optargs)
+        #         print("STEP", i, X[i], G)
+        #         X[i] = X[i - 1] - lmbda * G
+        #         f[i] = self._obj_function(X[i], *optargs)
+
+        #         if i % thermo == 0:
+        #             print(f"step {i} {f[i]}, {X[i]}, {G}")
+
+        #         if i % 20 == 0:
+        #             lmbda *= decay
 
         toc = time.time()
 
@@ -681,7 +706,8 @@ class MTM:
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
         elif optfun == "gradient-descent":
-            raise NotImplementedError
+            print(f"Optimisation terminated")
+            print(f"Resulting parameters: {X[-1]}")
 
         print("Time: %.2f s" % (toc - tic))
 
@@ -756,3 +782,21 @@ class MTM:
         return (self.skims["length"] * self.dmats[ds]).sum().sum() / self.dmats[
             ds
         ].sum().sum()
+
+
+"""
+Helper functions
+"""
+
+
+def grad(func, X, *args, h=1e-8):
+    """Compute gradient of a function at a given point X"""
+    # dX = np.ones_like(X)
+    dX = 1e-5
+    G = np.zeros_like(X)
+    for i, _ in enumerate(X):
+        dX = np.zeros_like(X)
+        dX[i] = h
+        G[i] = (func(X + dX, *args) - func(X - dX, *args)) / (2 * h)
+        print("grad", G)
+    return G
