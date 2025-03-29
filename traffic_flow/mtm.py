@@ -9,6 +9,7 @@ import networkx as nx
 
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
 from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
+from .parameters import OPT_FUNS
 
 
 class MTM:
@@ -67,29 +68,29 @@ class MTM:
             table containing columns as specified in `parameters.py`
         """
         if self.verbose:
-            print('Preparing nodes...')
+            print("Preparing nodes...")
         self.df_nodes = nodes.copy()
         self._verify_nodes()
         self.df_nodes.set_index("id", inplace=True)
 
         if self.verbose:
-            print('Prepaging zones...')
+            print("Prepaging zones...")
         self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
         self.Nz = self.df_zones.shape[0]
 
         if self.verbose:
-            print('Preparing link types...')
+            print("Preparing link types...")
         self.df_lt = link_types.copy()
         self._verify_link_types()
 
         if self.verbose:
-            print('Preparing link types...')
+            print("Preparing link types...")
         self.df_links = links.copy()
         self._verify_links()
         self._assign_link_data()
 
         if self.verbose:
-            print('Building the network graph...')
+            print("Building the network graph...")
         self._fill_graph()
 
     def _verify_nodes(self):
@@ -108,7 +109,8 @@ class MTM:
         """Verify if link type numbers subset of link types
         and if they connect the nodes"""
         assert np.isin(
-            COLS_LINKS, self.df_links.columns,
+            COLS_LINKS,
+            self.df_links.columns,
         ).all(), f"link list does not contain expected columns: {COLS_LINKS}"
 
     def _assign_link_data(self):
@@ -165,42 +167,40 @@ class MTM:
 
             # adding vertices
             att_nodes = {}
-            att_nodes['id'] = self.df_nodes.index
+            att_nodes["id"] = self.df_nodes.index
             for k, v in self.df_nodes.items():
                 att_nodes[k] = v.values
 
-            self.G.add_vertices(self.df_nodes.shape[0],
-                                attributes=att_nodes)
+            self.G.add_vertices(self.df_nodes.shape[0], attributes=att_nodes)
 
             # adding edges
             # create mapping between node index and id attribute
             nodes_to_vertices = pd.DataFrame(
-                {'id': self.G.vs['id'], 'index': self.G.vs.indices})
-            nodes_to_vertices = nodes_to_vertices.set_index('id')
+                {"id": self.G.vs["id"], "index": self.G.vs.indices}
+            )
+            nodes_to_vertices = nodes_to_vertices.set_index("id")
 
             self.df_links = self.df_links.reset_index()
-            self.df_links['vertex_from'] = nodes_to_vertices.loc[
-                self.df_links['node_from']].values
-            self.df_links['vertex_to'] = nodes_to_vertices.loc[
-                self.df_links['node_to']].values
+            self.df_links["vertex_from"] = nodes_to_vertices.loc[
+                self.df_links["node_from"]
+            ].values
+            self.df_links["vertex_to"] = nodes_to_vertices.loc[
+                self.df_links["node_to"]
+            ].values
 
-            self.df_links = self.df_links.set_index(
-                ['node_from', 'node_to'])
+            self.df_links = self.df_links.set_index(["node_from", "node_to"])
 
             # get list of all graph edges
-            list_edges = zip(self.df_links['vertex_from'],
-                             self.df_links['vertex_to'])
+            list_edges = zip(self.df_links["vertex_from"], self.df_links["vertex_to"])
 
             # drop temporary columns
-            self.df_links = self.df_links.drop(
-                columns=['vertex_from', 'vertex_to'])
+            self.df_links = self.df_links.drop(columns=["vertex_from", "vertex_to"])
 
             att_links = {}
             for k, v in self.df_links.items():
                 att_links[k] = v.values
 
-            self.G.add_edges(list_edges,
-                             attributes=att_links)
+            self.G.add_edges(list_edges, attributes=att_links)
 
             del att_links
             del att_nodes
@@ -219,7 +219,7 @@ class MTM:
         """
         Generate the key-value pairs of node columns.
         Apply the method separately for each demand stratum.
-        
+
         Inputs
         ------
         - prod : production zone attribute
@@ -247,7 +247,9 @@ class MTM:
     # =====
     # Skim/impedance matrices
     # =====
-    def compute_skims(self, diagonal="density", density=1000.0, diagonal_param=0.5, fillna=True):
+    def compute_skims(
+        self, diagonal="density", density=1000.0, diagonal_param=0.5, fillna=True
+    ):
         """
         Compute skim matrices, choose from the following:
         - "length" : distance between zones
@@ -277,16 +279,16 @@ class MTM:
         In both cases, scale the distance by the `"diagonal_param"`.
         For time-based skim matrices, convert distance to time via intrazonal
         speed `"v_intra"`.
-        
+
         Parameters
         ----------
         - kind : string
             Choose from `"t0"`, `"tcur"`, `"length"`
         - diagonal : string, optional
             A flag to determine the way to compute ompute the matrix diagonal.
-            If `"density"` chosen, zone area is computed from the population 
-            density supplied in the `density` keyword and from it the distance 
-            as a square root. Choice `"area"` computes distance as a square 
+            If `"density"` chosen, zone area is computed from the population
+            density supplied in the `density` keyword and from it the distance
+            as a square root. Choice `"area"` computes distance as a square
             root of the zone attribute "area".
         - diagonal_param : float, optional
             Parameter to scale the distance computed from the area
@@ -343,15 +345,18 @@ class MTM:
         if self.skims[kind].isin([np.nan, np.inf, -np.inf]).values.any():
             vals = np.prod(self.skims[kind].shape)
             vals_bad = np.logical_or(
-                np.isinf(self.skims[kind].values),
-                np.isnan(self.skims[kind].values)
+                np.isinf(self.skims[kind].values), np.isnan(self.skims[kind].values)
             ).sum()
             pc = vals_bad / vals * 100
             if fillna:
                 self.skims[kind].replace([np.inf, -np.inf, np.nan], 1e6, inplace=True)
-                print(f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%) filling with 1e6")
+                print(
+                    f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%) filling with 1e6"
+                )
             else:
-                print(f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%)")
+                print(
+                    f"Warning: nan's/inf's in skim matrix '{kind}', {vals_bad} values ({pc:.2f}%)"
+                )
 
     def compute_skim_utility(self, name, params):
         """Compute the utility skim matrix composed of several
@@ -373,7 +378,7 @@ class MTM:
         if func == "exp":
             return np.exp(beta * C)
         elif func == "poly":
-            return C ** beta
+            return C**beta
         elif func == "power":
             return (C + beta[1]) ** beta[0]
 
@@ -383,7 +388,7 @@ class MTM:
         """
         Compute OD matrices for a given demand stratum
         via a doubly constrained iterative algorithm
-        
+
         Inputs
         ------
         - ds : str
@@ -460,9 +465,9 @@ class MTM:
         Use only one transport system here.
 
         1. Sum all demand matrices.
-        2. For each weight, calculate all the shortest paths 
-           by given impedance (distance or current time) 
-           between two zones and add to the links on the path. 
+        2. For each weight, calculate all the shortest paths
+           by given impedance (distance or current time)
+           between two zones and add to the links on the path.
            Update current time.
 
         KS: Impedance in assignment is defined on graph's edges, not from
@@ -470,7 +475,7 @@ class MTM:
         error prompt to "assert imp in self.basic_skim_kinds".
         Alternatively, it could be "assert imp in mtm.G.es.attributes()"
         but then it's risky that other attribute gets called by accident.
-        
+
         Inputs
         ------
         - imp : str
@@ -581,7 +586,7 @@ class MTM:
         )
 
     def _var_geh_vehkm(self, measured_col):
-        """Compute GEH as a variance without the square root and 
+        """Compute GEH as a variance without the square root and
         adjusted for section lengths"""
         l = self.df_links["length"]
         self.df_links["var_geh"] = (
@@ -597,12 +602,12 @@ class MTM:
     def optimise(
         self,
         n_iter,
-        optfun="dual_annealing",
+        optfun="dual-annealing",
         x0=None,
         bounds=None,
-        imp="tcur",
+        skim="tcur",
         seed=1101,
-        weights=[50, 50],
+        weights=[100],  # [50, 50],
     ):
         """
         Global optimisation of model parameters.
@@ -619,11 +624,9 @@ class MTM:
         # basic checks
         assert (
             len(self.dstrat) > 0
-        ), "No demand strata defined, need to run trip generation first."
-        assert optfun in [
-            "dual_annealing",
-            "basinhopping",
-        ], "Choose functions from: dual_annealing, basinhopping."
+        ), "no demand strata defined, need to run trip generation first"
+        if optfun not in OPT_FUNS:
+            raise ValueError(f"choose optimisation functions from {OPT_FUNS}")
 
         # compute the number of optimisation parameters
         n_param = 0
@@ -632,7 +635,7 @@ class MTM:
             n_param += par + 1
 
         # check the structure of initial values if required
-        if optfun in ["basinhopping"]:
+        if optfun in ["basin-hopping"]:
             assert x0 != None and len(x0) == n_param, (
                 "Number of initial values must correspond\
                 to the number of trip generation and distribution parameters\
@@ -640,8 +643,8 @@ class MTM:
                 % n_param
             )
 
-        # compose the list of bounds if required
-        if optfun in ["dual_annealing"]:
+        # compose list of bounds if required
+        if optfun in ["dual-annealing"]:
             if bounds == None:
                 bounds = []
                 for m in self.dstrat.index:
@@ -654,11 +657,11 @@ class MTM:
             else:
                 assert len(bounds) == n_param, "incorrect number of bounds"
 
-        optargs = (imp, weights)
+        optargs = (skim, weights)
 
         # optimisation core
         tic = time.time()
-        if optfun == "dual_annealing":
+        if optfun == "dual-annealing":
             from scipy.optimize import dual_annealing
 
             res = dual_annealing(
@@ -669,18 +672,17 @@ class MTM:
                 maxiter=n_iter,
             )
 
-        elif optfun == "basinhopping":
-            # from scipy.optimize import basinhopping
-            # res = basinhopping(self._obj_function, x0=x0, niter=Nit, \
-            #     minimizer_kwargs=optargs, bounds=bounds, seed=seed)
+        elif optfun == "gradient-descent":
             raise NotImplementedError
 
-        elif optfun == "gradient_descent":
-            raise NotImplementedError
         toc = time.time()
 
-        print("Optimisation terminated. Success: %s" % res.success)
-        print("Resulting parameters: %s" % res.x)
+        if optfun == "dual-annealing":
+            print(f"Optimisation terminated. Success: {res.success}")
+            print(f"Resulting parameters: {res.x}")
+        elif optfun == "gradient-descent":
+            raise NotImplementedError
+
         print("Time: %.2f s" % (toc - tic))
 
         for m, n in enumerate(self.dstrat.index):
