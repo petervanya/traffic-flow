@@ -7,7 +7,7 @@ import time
 import igraph as ig
 import networkx as nx
 
-from scipy.optimize import dual_annealing
+from scipy.optimize import dual_annealing, minimize
 
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
 from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
@@ -655,7 +655,7 @@ class MTM:
             else:
                 assert len(bounds) == n_param, "incorrect number of bounds"
 
-        optargs = (skim, weights)
+        opt_args = (skim, weights)
         if "geh" not in self.df_links.columns:
             self.compute_error()
         print(f"Initial error: {self.df_links['geh'].mean()}")
@@ -665,10 +665,22 @@ class MTM:
         if optfun == "dual-annealing":
             res = dual_annealing(
                 self._obj_function,
-                args=optargs,
+                args=opt_args,
                 bounds=bounds,
                 seed=seed,
                 maxiter=n_iter,
+            )
+
+        elif optfun == "nelder-mead":
+            if x0 is None:
+                raise ValueError(f"Nelder-Mead requires x0")
+
+            res = minimize(
+                self._obj_function,
+                x0=x0,
+                args=opt_args,
+                method="Nelder-Mead",
+                bounds=bounds,
             )
 
         # elif optfun == "gradient-descent":

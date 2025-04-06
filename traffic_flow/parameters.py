@@ -10,4 +10,4 @@ COLS_LINKS = ["id", "node_from", "node_to", "type", "length"]
 COLS_LINK_TYPES = ["type", "type_name", "v0", "qmax", "a", "b"]
 
 # optmisation
-OPT_FUNS = ['dual-annealing', 'gradient-descent']
+OPT_FUNS = ["dual-annealing", "nelder-mead", "gradient-descent"]
