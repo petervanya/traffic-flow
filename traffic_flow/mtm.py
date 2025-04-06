@@ -7,6 +7,8 @@ import time
 import igraph as ig
 import networkx as nx
 
+from scipy.optimize import dual_annealing
+
 from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
 from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
 from .parameters import OPT_FUNS
@@ -557,6 +559,7 @@ class MTM:
             raise ValueError(f"{measured_col} not found among link attributes")
         self._geh(measured_col)
         self._var_geh(measured_col)
+        print(f"Average error: {self.df_links['geh'].mean()}")
 
     # =====
     # Error-measuring tools
@@ -638,15 +641,6 @@ class MTM:
             par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
             n_param += par + 1
 
-        # check the structure of initial values if required
-        if optfun in ["basin-hopping"]:
-            assert x0 != None and len(x0) == n_param, (
-                "Number of initial values must correspond\
-                to the number of trip generation and distribution parameters\
-                (%i)."
-                % n_param
-            )
-
         # compose list of bounds if required
         if optfun in ["dual-annealing"]:
             if bounds == None:
@@ -662,12 +656,13 @@ class MTM:
                 assert len(bounds) == n_param, "incorrect number of bounds"
 
         optargs = (skim, weights)
+        if "geh" not in self.df_links.columns:
+            self.compute_error()
+        print(f"Initial error: {self.df_links['geh'].mean()}")
 
         # optimisation core
         tic = time.time()
         if optfun == "dual-annealing":
-            from scipy.optimize import dual_annealing
-
             res = dual_annealing(
                 self._obj_function,
                 args=optargs,
@@ -709,6 +704,7 @@ class MTM:
         if optfun == "dual-annealing":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
+            print(f"Resulting error: {res.fun}")
         elif optfun == "gradient-descent":
             raise NotImplementedError
 
