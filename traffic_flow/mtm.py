@@ -229,18 +229,22 @@ class MTM:
         """
         assert hasattr(
             self, "df_nodes"
-        ), "No input dataframe of nodes found, did you read it?"
+        ), "no input dataframe of nodes found, did you read it?"
         assert (
             prod in self.df_nodes.columns
-        ), "Production attribute not found in node columns."
+        ), "production attribute not found in node columns"
         assert (
             attr in self.df_nodes.columns
-        ), "Attraction attribute not found in node columns."
+        ), "attraction attribute not found in node columns"
 
         if (self.df_zones[prod] < 1.0).any():
-            print("Warning: Zone attraction '%s' contains zeros." % prod)
+            print(f"Warning: Zone production {prod} contains zeros")
         if (self.df_zones[attr] < 1.0).any():
-            print("Warning: Zone production '%s' contains zeros." % attr)
+            print(f"Warning: Zone attraction {attr} contains zeros.")
+
+        # convert to floats
+        self.df_nodes[prod] = self.df_nodes[prod].astype(float)
+        self.df_nodes[attr] = self.df_nodes[attr].astype(float)
 
         self.dstrat.loc[name] = [prod, attr, param]
 
@@ -706,8 +710,7 @@ class MTM:
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
         elif optfun == "gradient-descent":
-            print(f"Optimisation terminated")
-            print(f"Resulting parameters: {X[-1]}")
+            raise NotImplementedError
 
         print("Time: %.2f s" % (toc - tic))
 
