@@ -609,7 +609,7 @@ class MTM:
     def optimise(
         self,
         n_iter=10,
-        optfun="dual-annealing",
+        method="dual-annealing",
         x0=None,
         bounds=None,
         skim="tcur",
@@ -632,7 +632,7 @@ class MTM:
         assert (
             len(self.dstrat) > 0
         ), "no demand strata defined, need to run trip generation first"
-        if optfun not in OPT_FUNS:
+        if method not in OPT_FUNS:
             raise ValueError(f"choose optimisation functions from {OPT_FUNS}")
 
         # compute the number of optimisation parameters
@@ -642,7 +642,7 @@ class MTM:
             n_param += par + 1
 
         # compose list of bounds if required
-        if optfun in ["dual-annealing"]:
+        if method in ["dual-annealing"]:
             if bounds == None:
                 bounds = []
                 for m in self.dstrat.index:
@@ -662,7 +662,7 @@ class MTM:
 
         # optimisation core
         tic = time.time()
-        if optfun == "dual-annealing":
+        if method == "dual-annealing":
             res = dual_annealing(
                 self._obj_function,
                 args=opt_args,
@@ -671,7 +671,7 @@ class MTM:
                 maxiter=n_iter,
             )
 
-        elif optfun.lower() == "nelder-mead":
+        elif method.lower() == "nelder-mead":
             if x0 is None:
                 raise ValueError(f"Nelder-Mead requires x0")
 
@@ -713,15 +713,15 @@ class MTM:
 
         toc = time.time()
 
-        if optfun == "dual-annealing":
+        if method == "dual-annealing":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
             print(f"Resulting error: {res.fun}")
-        if optfun == "nelder-mead":
+        if method == "nelder-mead":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
             print(f"Resulting error: {res.fun}")
-        elif optfun == "gradient-descent":
+        elif method == "gradient-descent":
             raise NotImplementedError
 
         print("Time: %.2f s" % (toc - tic))
