@@ -29,12 +29,13 @@ def test_optimise(method, x0=None):
 
     # optimisation
     tic = time.time()
-    model.optimise(optfun=method, n_iter=10, x0=x0)
+    res = model.optimise(method=method, n_iter=10, x0=x0)
     toc = time.time()
 
-    print("Optimisation done. Time: %.3f s" % (toc - tic))
-    print(model.opt_params)  # .to_markdown())
-    print(model.opt_output)  # .to_markdown())
+    print(res)
+
+    print(model.opt_params)
+    print(model.opt_output)
 
 
 if __name__ == "__main__":
