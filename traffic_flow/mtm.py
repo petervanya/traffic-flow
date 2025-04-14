@@ -77,7 +77,7 @@ class MTM:
 
         if self.verbose:
             print("Prepaging zones...")
-        self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True]
+        self.df_zones = self.df_nodes[self.df_nodes["is_zone"] == True].copy()
         self.Nz = self.df_zones.shape[0]
 
         if self.verbose:
@@ -233,10 +233,10 @@ class MTM:
             self, "df_nodes"
         ), "no input dataframe of nodes found, did you read it?"
         assert (
-            prod in self.df_nodes.columns
+            prod in self.df_zones.columns
         ), "production attribute not found in node columns"
         assert (
-            attr in self.df_nodes.columns
+            attr in self.df_zones.columns
         ), "attraction attribute not found in node columns"
 
         if (self.df_zones[prod] < 1.0).any():
@@ -245,8 +245,8 @@ class MTM:
             print(f"Warning: Zone attraction {attr} contains zeros.")
 
         # convert to floats
-        self.df_nodes[prod] = self.df_nodes[prod].astype(float)
-        self.df_nodes[attr] = self.df_nodes[attr].astype(float)
+        self.df_zones[prod] = self.df_zones[prod].astype(float)
+        self.df_zones[attr] = self.df_zones[attr].astype(float)
 
         self.dstrat.loc[name] = [prod, attr, param]
 
@@ -608,7 +608,7 @@ class MTM:
     # =====
     def optimise(
         self,
-        n_iter,
+        n_iter=10,
         optfun="dual-annealing",
         x0=None,
         bounds=None,
@@ -621,7 +621,7 @@ class MTM:
 
         Inputs
         ------
-        - n_iter : number of iterations
+        - n_iter : number of iterations for dual annealing
         - optfun : optimisation function from Scipy
         - x0 : initial estimates of the parameters
         - imp : assignment impedance (t0, tcur, l)
@@ -671,7 +671,7 @@ class MTM:
                 maxiter=n_iter,
             )
 
-        elif optfun == "nelder-mead":
+        elif optfun.lower() == "nelder-mead":
             if x0 is None:
                 raise ValueError(f"Nelder-Mead requires x0")
 
@@ -714,6 +714,10 @@ class MTM:
         toc = time.time()
 
         if optfun == "dual-annealing":
+            print(f"Optimisation terminated. Success: {res.success}")
+            print(f"Resulting parameters: {res.x}")
+            print(f"Resulting error: {res.fun}")
+        if optfun == "nelder-mead":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
             print(f"Resulting error: {res.fun}")
