@@ -632,6 +632,7 @@ class MTM:
         assert (
             len(self.dstrat) > 0
         ), "no demand strata defined, need to run trip generation first"
+        method = method.lower()
         if method not in OPT_FUNS:
             raise ValueError(f"choose optimisation functions from {OPT_FUNS}")
 
@@ -671,7 +672,7 @@ class MTM:
                 maxiter=n_iter,
             )
 
-        elif method.lower() == "nelder-mead":
+        elif method == "nelder-mead":
             if x0 is None:
                 raise ValueError(f"Nelder-Mead requires x0")
 
@@ -730,6 +731,8 @@ class MTM:
             self.opt_params.loc[n] = [res.x[2 * m], res.x[2 * m + 1]]
 
         self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
+
+        return res
 
     def _obj_function(self, z, imp, weights=[50, 50], measured_col="count"):
         """
