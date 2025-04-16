@@ -29,7 +29,7 @@ def test_optimise(method, x0=None):
 
     # optimisation
     tic = time.time()
-    res = model.optimise(method=method, n_iter=10, x0=x0)
+    res = model.optimise(method=method, n_iter=10, x0=x0, record=True)
     toc = time.time()
 
     print(res)
@@ -39,8 +39,7 @@ def test_optimise(method, x0=None):
 
 
 if __name__ == "__main__":
-    # test_optimise('dual-annealing')
-    print("\nTesting dual annealing...")
-    test_optimise("dual-annealing", x0=[0.07, -1e-3])
     print("\nTesting Nelder-Mead method...")
     test_optimise("nelder-mead", x0=[0.07, -1e-3])
+    print("\nTesting dual annealing...")
+    test_optimise("dual-annealing", x0=[0.07, -1e-3])
