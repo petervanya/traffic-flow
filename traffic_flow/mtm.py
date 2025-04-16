@@ -615,18 +615,43 @@ class MTM:
         skim="tcur",
         seed=1101,
         weights=[100],  # [50, 50],
+        record=False,
     ):
         """
-        Global optimisation of model parameters.
-
-        Inputs
-        ------
-        - n_iter : number of iterations for dual annealing
-        - optfun : optimisation function from Scipy
-        - x0 : initial estimates of the parameters
-        - imp : assignment impedance (t0, tcur, l)
-        - seed : random seed
-        - ws : weights in incremental assignment
+        Optimisation of model parameters.
+        
+        Parameters
+        ----------
+        n_iter : int, optional, default=10
+            Number of iterations for the optimisation process.
+        method : str, optional, default="dual-annealing"
+            Optimisation method to use. Supported methods are:
+            - "dual-annealing"
+            - "nelder-mead"
+        x0 : array-like, optional, default=None
+            Initial estimates of the parameters. Required for "nelder-mead".
+        bounds : list of tuple, optional, default=None
+            Bounds for the parameters. If not provided, default bounds are used
+            for "dual-annealing".
+        skim : str, optional, default="tcur"
+            Assignment impedance type (e.g., "tcur").
+        seed : int, optional, default=1101
+            Random seed for reproducibility.
+        weights : list, optional, default=[100]
+            Weights for incremental assignment.
+        record : bool, optional, default=False
+            If True, records function evaluations during optimisation.
+        Returns
+        -------
+        res : OptimizeResult
+            The optimisation result represented as a `scipy.optimize.OptimizeResult` object.
+            Includes the following attributes:
+            - `x` : ndarray, the solution of the optimisation.
+            - `fun` : float, the value of the objective function at the solution.
+            - `success` : bool, whether or not the optimiser exited successfully.
+            - `nit` : int, number of iterations performed.
+            - `nfev` : int, number of function evaluations performed.
+            - `hist` : list, history of function evaluations (if `record=True`).
         """
         # basic checks
         assert (
@@ -660,21 +685,36 @@ class MTM:
         if "geh" not in self.df_links.columns:
             self.compute_error()
         print(f"Initial error: {self.df_links['geh'].mean()}")
-
+            
         # optimisation core
         tic = time.time()
+        hist = []
         if method == "dual-annealing":
+
+            def callback(x, f, context):
+                if record:
+                    hist.append(f)
+                else:
+                    pass
+
             res = dual_annealing(
                 self._obj_function,
                 args=opt_args,
                 bounds=bounds,
                 seed=seed,
                 maxiter=n_iter,
+                callback=callback,
             )
 
         elif method == "nelder-mead":
             if x0 is None:
                 raise ValueError(f"Nelder-Mead requires x0")
+
+            def callback(xk):
+                if record:
+                    hist.append(self._obj_function(xk, *opt_args))
+                else:
+                    pass
 
             res = minimize(
                 self._obj_function,
@@ -682,6 +722,7 @@ class MTM:
                 args=opt_args,
                 method="Nelder-Mead",
                 bounds=bounds,
+                callback=callback,
             )
 
         # elif optfun == "gradient-descent":
@@ -712,8 +753,10 @@ class MTM:
         #         if i % 20 == 0:
         #             lmbda *= decay
 
+        res['hist'] = hist
         toc = time.time()
 
+        # print final messages
         if method == "dual-annealing":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
@@ -727,6 +770,7 @@ class MTM:
 
         print("Time: %.2f s" % (toc - tic))
 
+        # store optimized parameters in a dataframe
         for m, n in enumerate(self.dstrat.index):
             self.opt_params.loc[n] = [res.x[2 * m], res.x[2 * m + 1]]
 
