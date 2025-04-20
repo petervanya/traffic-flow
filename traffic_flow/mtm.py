@@ -23,14 +23,14 @@ class MTM:
 
     def __init__(self, backend="igraph", v_intra=40.0, verbose=False):
         """
-        Inputs
-        ------
-        - backend : str,
-            igraph or networkx
-        - v_intra : float
-            intrazonal speed in kmh
-        - verbose : bool
-            select True for more detailed information
+        Parameters
+        ----------
+        backend : str, optional, default="igraph"
+            Specifies the graph backend to use, either 'igraph' or 'networkx'.
+        v_intra : float, optional, default=40.0
+            Intrazonal speed in kilometers per hour (km/h).
+        verbose : bool, optional, default=False
+            If True, enables detailed logging for debugging purposes.
         """
         backend = backend.lower()
         if backend not in BACKENDS:
@@ -62,12 +62,12 @@ class MTM:
         """
         Inputs
         ------
-        - Nodes : pd.dataframe
-            table containing columns as specified in `parameters.py`
-        - Link types : pd.dataframe
-            table containing columns as specified in `parameters.py`
-        - Links : pd.dataframe
-            table containing columns as specified in `parameters.py`
+        - nodes : pd.DataFrame
+            Table containing columns as specified in `parameters.py`.
+        - link_types : pd.DataFrame
+            Table containing columns as specified in `parameters.py`.
+        - links : pd.DataFrame
+            Table containing columns as specified in `parameters.py`.
         """
         if self.verbose:
             print("Preparing nodes...")
@@ -94,6 +94,21 @@ class MTM:
         if self.verbose:
             print("Building the network graph...")
         self._fill_graph()
+
+    @classmethod
+    def from_dataframes(
+        cls, nodes, link_types, links, backend="igraph", v_intra=40.0, verbose=False
+    ):
+        """
+        Create an MTM instance from dataframes and initialize it with the provided data.
+        """
+        instance = cls(backend=backend, v_intra=v_intra, verbose=verbose)
+        instance.read_data(nodes, link_types, links)
+        return instance
+
+    """
+    Verification methods for input data quality
+    """
 
     def _verify_nodes(self):
         """Check that key columns are present"""
@@ -214,9 +229,10 @@ class MTM:
             for k, v in self.df_links.iterrows():
                 self.G.add_edge(k[0], k[1], **v)
 
-    # =====
-    # Trip generation
-    # =====
+    """
+    Trip generation
+    """
+
     def generate(self, name, prod, attr, param):
         """
         Generate the key-value pairs of node columns.
@@ -250,9 +266,10 @@ class MTM:
 
         self.dstrat.loc[name] = [prod, attr, param]
 
-    # =====
-    # Skim/impedance matrices
-    # =====
+    """
+    Skim matrices
+    """
+
     def compute_skims(
         self, diagonal="density", density=1000.0, diagonal_param=0.5, fillna=True
     ):
@@ -370,9 +387,10 @@ class MTM:
         values and specific link attributes"""
         raise NotImplementedError
 
-    # =====
-    # Trip distribution
-    # =====
+    """
+    Trip distribution
+    """
+
     def dist_func(self, func, C, beta):
         if func == "power":
             try:
@@ -462,9 +480,10 @@ class MTM:
             T, columns=self.df_zones.index, index=self.df_zones.index
         )
 
-    # =====
-    # Assignment
-    # =====
+    """
+    Trip assignment
+    """
+
     def assign(self, imp, kind="incremental", weights=[50, 50]):
         """
         Assign demand matrix to the network.
@@ -561,9 +580,10 @@ class MTM:
         self._var_geh(measured_col)
         print(f"Average error: {self.df_links['geh'].mean()}")
 
-    # =====
-    # Error-measuring tools
-    # =====
+    """
+    Error-measuring tools
+    """
+
     def _geh(self, measured_col):
         """Compute the GEH error of each link with a measurement"""
         self.df_links["geh"] = np.sqrt(
@@ -603,9 +623,10 @@ class MTM:
             / 10.0
         )
 
-    # =====
-    # Optimisation
-    # =====
+    """
+    Optimisation
+    """
+
     def optimise(
         self,
         n_iter=10,
@@ -619,7 +640,7 @@ class MTM:
     ):
         """
         Optimisation of model parameters.
-        
+
         Parameters
         ----------
         n_iter : int, optional, default=10
@@ -685,7 +706,7 @@ class MTM:
         if "geh" not in self.df_links.columns:
             self.compute_error()
         print(f"Initial error: {self.df_links['geh'].mean()}")
-            
+
         # optimisation core
         tic = time.time()
         hist = []
@@ -753,7 +774,7 @@ class MTM:
         #         if i % 20 == 0:
         #             lmbda *= decay
 
-        res['hist'] = hist
+        res["hist"] = hist
         toc = time.time()
 
         # print final messages
@@ -835,9 +856,6 @@ class MTM:
 
         return np.mean(gehs)  # + reg
 
-    # =====
-    # Processing functions
-    # =====
     def compute_mean_trip_length(self, ds):
         """Compute the mean trip length for a given demand stratum"""
         assert ds in self.dstrat.index, "Demand stratum not available."
