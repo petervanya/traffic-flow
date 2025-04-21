@@ -35,7 +35,6 @@ def test_optimise(method, x0=None):
     print(res)
 
     print(model.opt_params)
-    print(model.opt_output)
 
 
 if __name__ == "__main__":

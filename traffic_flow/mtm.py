@@ -576,7 +576,6 @@ class MTM:
         if measured_col not in self.df_links.columns:
             raise ValueError(f"{measured_col} not found among link attributes")
         self._geh(measured_col)
-        self._var_geh(measured_col)
         print(f"Average error: {self.df_links['geh'].mean()}")
 
     """
@@ -596,26 +595,6 @@ class MTM:
         """Compute GEH adjusted for section lengths"""
         l = self.df_links["length"]
         self.df_links["geh"] = np.sqrt(
-            2.0
-            * (self.df_links["q"] * l - self.df_links[measured_col] * l) ** 2
-            / (self.df_links["q"] * l + self.df_links[measured_col] * l)
-            / 10.0
-        )
-
-    def _var_geh(self, measured_col):
-        """Compute GEH as a variance without the square root"""
-        self.df_links["var_geh"] = (
-            2.0
-            * (self.df_links["q"] - self.df_links[measured_col]) ** 2
-            / (self.df_links["q"] + self.df_links[measured_col])
-            / 10.0
-        )
-
-    def _var_geh_vehkm(self, measured_col):
-        """Compute GEH as a variance without the square root and
-        adjusted for section lengths"""
-        l = self.df_links["length"]
-        self.df_links["var_geh"] = (
             2.0
             * (self.df_links["q"] * l - self.df_links[measured_col] * l) ** 2
             / (self.df_links["q"] * l + self.df_links[measured_col] * l)
