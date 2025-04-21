@@ -53,7 +53,6 @@ class MTM:
         )  # distribution params
         # optimisation results
         self.opt_params = pd.DataFrame(columns=["attr_param", "dist_param"])
-        self.opt_output = pd.DataFrame(columns=["error", "nit", "nfev", "success"])
         # ad-hoc data
         self.v_intra = v_intra
         self.verbose = verbose
@@ -730,10 +729,10 @@ class MTM:
             else:
                 assert len(bounds) == n_param, "incorrect number of bounds"
 
-        opt_args = (skim, weights)
         if "geh" not in self.df_links.columns:
             self.compute_error()
         print(f"Initial error: {self.df_links['geh'].mean()}")
+        opt_args = (skim, weights)
 
         # optimisation core
         tic = time.time()
@@ -823,8 +822,6 @@ class MTM:
         for m, n in enumerate(self.dstrat.index):
             self.opt_params.loc[n] = [res.x[2 * m], res.x[2 * m + 1]]
 
-        self.opt_output.loc[1] = [res.fun, res.nit, res.nfev, res.success]
-
         return res
 
     def _obj_function(self, z, imp, weights=[50, 50], measured_col="count"):
@@ -897,10 +894,9 @@ Helper functions
 """
 
 
-def grad(func, X, *args, h=1e-8):
+def grad(func, X, *args, h=1e-5):
     """Compute gradient of a function at a given point X"""
-    # dX = np.ones_like(X)
-    dX = 1e-5
+    dX = np.zeros_like(X)
     G = np.zeros_like(X)
     for i, _ in enumerate(X):
         dX = np.zeros_like(X)
