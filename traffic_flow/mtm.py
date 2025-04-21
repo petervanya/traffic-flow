@@ -623,6 +623,34 @@ class MTM:
             / 10.0
         )
 
+    def compute_percentile(self, threshold):
+        """
+        Compute the percentage of sections with error below given threshold.
+
+        Parameters
+        ----------
+        threshold : float
+            Threshold value for the GEH error (must be greater than 0).
+
+        Returns
+        -------
+        float
+            Percentage of road sections with GEH error <= threshold.
+        """
+        if threshold <= 0:
+            raise ValueError("Threshold must be greater than 0.")
+
+        if "geh" not in self.df_links.columns:
+            self.compute_error()
+
+        total_links = self.df_links["count"].notna().sum()
+        if total_links == 0:
+            raise ValueError("No road sections available for evaluation.")
+
+        percentage = len(self.df_links[self.df_links["geh"] <= threshold]) / total_links
+
+        return percentage
+
     """
     Optimisation
     """
