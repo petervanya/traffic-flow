@@ -643,6 +643,7 @@ class MTM:
         seed=1101,
         weights=[100],  # [50, 50],
         record=False,
+        train_test_split=1.0,
     ):
         """
         Optimisation of model parameters.
@@ -668,6 +669,10 @@ class MTM:
             Weights for incremental assignment.
         record : bool, optional, default=False
             If True, records function evaluations during optimisation.
+        train_split : float, optional, default=1.0
+            Fraction of measured sections to use for training (between 0 and 1).
+            If 1.0, all measured sections are used for training.
+            If < 1.0, randomly splits measured sections into train and test sets.
         Returns
         -------
         res : OptimizeResult
@@ -679,6 +684,8 @@ class MTM:
             - `nit` : int, number of iterations performed.
             - `nfev` : int, number of function evaluations performed.
             - `hist` : list, history of function evaluations (if `record=True`).
+            - `train_error` : float, mean GEH error on training set.
+            - `test_error` : float, mean GEH error on test set (if train_split < 1.0).
         """
         # basic checks
         assert (
@@ -687,6 +694,10 @@ class MTM:
         method = method.lower()
         if method not in OPT_FUNS:
             raise ValueError(f"choose optimisation functions from {OPT_FUNS}")
+
+        # validate train_test_split
+        if not (0 < train_test_split <= 1.0):
+            raise ValueError("train_test_split must be between 0 and 1")
 
         # compute the number of optimisation parameters
         n_param = 0
@@ -711,7 +722,35 @@ class MTM:
         if "geh" not in self.df_links.columns:
             self.compute_error()
         print(f"Initial error: {self.df_links['geh'].mean()}")
-        opt_args = (skim, weights)
+
+        # identify measured sections and create train-test split
+        measured_mask = np.logical_and(
+            np.logical_not(np.isnan(self.df_links["count"])),
+            self.df_links["count"] != 0,
+        )
+        measured_indices = np.where(measured_mask)[0]
+        n_measured = len(measured_indices)
+        if n_measured == 0:
+            raise ValueError("No measured sections available for optimization")
+
+        # create train-test split
+        np.random.seed(seed)
+        n_train = int(np.ceil(train_test_split * n_measured))
+        train_indices = np.random.choice(measured_indices, size=n_train, replace=False)
+        train_mask = np.zeros(len(self.df_links), dtype=bool)
+        train_mask[train_indices] = True
+
+        if train_test_split < 1.0:
+            test_mask = measured_mask & ~train_mask
+            n_test = test_mask.sum()
+            print(
+                f"Train-test split: {n_train} training sections, {n_test} test sections"
+            )
+        else:
+            test_mask = None
+            print(f"Using all {n_train} measured sections for training")
+
+        opt_args = (skim, weights, train_mask)
 
         # optimisation core
         tic = time.time()
@@ -783,15 +822,29 @@ class MTM:
         res["hist"] = hist
         toc = time.time()
 
+        # evaluate final model on both train and test sets
+        train_error = self._obj_function(res.x, skim, weights, train_mask)
+        res["train_error"] = train_error
+
+        if train_test_split < 1.0:
+            test_error = self._obj_function(res.x, skim, weights, test_mask)
+            res["test_error"] = test_error
+        else:
+            res["test_error"] = None
+
         # print final messages
         if method == "dual-annealing":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
-            print(f"Resulting error: {res.fun}")
+            print(f"Training error: {train_error:.4f}")
+            if train_test_split < 1.0:
+                print(f"Test error: {test_error:.4f}")
         if method == "nelder-mead":
             print(f"Optimisation terminated. Success: {res.success}")
             print(f"Resulting parameters: {res.x}")
-            print(f"Resulting error: {res.fun}")
+            print(f"Training error: {train_error:.4f}")
+            if train_test_split < 1.0:
+                print(f"Test error: {test_error:.4f}")
         elif method == "gradient-descent":
             raise NotImplementedError
 
@@ -803,7 +856,9 @@ class MTM:
 
         return res
 
-    def _obj_function(self, z, imp, weights=[50, 50], measured_col="count"):
+    def _obj_function(
+        self, z, imp, weights=[50, 50], train_mask=None, measured_col="count"
+    ):
         """
         The sum of all GEH differences between traffic counts and modelled
         flows on links that contain the counts.
@@ -818,6 +873,9 @@ class MTM:
             impedance kind: t0, tcur, length
         - ws : iterable
             assignment weights
+        - train_mask : ndarray of bool, optional
+            Boolean mask indicating which measured sections to use for error computation.
+            If None, uses all measured sections.
         """
         # basic checks
         assert len(self.dstrat) > 0, "no demand strata defined"
@@ -839,12 +897,22 @@ class MTM:
         # assignment
         self.assign(imp=imp, weights=weights)
 
-        relevant = self.df_links[
-            np.logical_and(
+        # apply train mask if provided
+        if train_mask is not None:
+            relevant_mask = np.logical_and(
+                np.logical_and(
+                    (np.logical_not(np.isnan(self.df_links[measured_col]))),
+                    (self.df_links[measured_col] != 0),
+                ),
+                train_mask,
+            )
+        else:
+            relevant_mask = np.logical_and(
                 (np.logical_not(np.isnan(self.df_links[measured_col]))),
                 (self.df_links[measured_col] != 0),
             )
-        ]
+
+        relevant = self.df_links[relevant_mask]
 
         # compute error
         gehs = np.sqrt(
