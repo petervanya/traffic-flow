@@ -11,7 +11,7 @@ from traffic_flow import MTM
 from traffic_flow.sample_networks import load_network_2
 
 
-def test_optimise(method, x0=None):
+def test_optimise(method, x0=None, grids=None):
     # loading data
     df_nodes, df_link_types, df_links = load_network_2()
 
@@ -29,7 +29,7 @@ def test_optimise(method, x0=None):
 
     # optimisation
     tic = time.time()
-    res = model.optimise(method=method, n_iter=10, x0=x0, record=True)
+    res = model.optimise(method=method, n_iter=10, x0=x0, grids=grids, record=True)
     toc = time.time()
 
     print(res)
@@ -57,17 +57,13 @@ def test_optimise_train_test_split(method, train_test_split=0.6, x0=None):
     # optimisation with train-test split
     tic = time.time()
     res = model.optimise(
-        method=method, 
-        n_iter=10, 
-        x0=x0, 
-        record=True, 
-        train_test_split=train_test_split
+        method=method, n_iter=10, x0=x0, record=True, train_test_split=train_test_split
     )
     toc = time.time()
 
     print(res)
     print(model.opt_params)
-    
+
     # Print train vs test error if available
     print(f"\nTrain error (GEH): {res.train_error:.3f}")
     print(f"Test error (GEH): {res.test_error:.3f}")
@@ -78,7 +74,14 @@ if __name__ == "__main__":
     test_optimise("nelder-mead", x0=[0.07, -1e-3])
     print("\nTesting dual annealing...")
     test_optimise("dual-annealing", x0=[0.07, -1e-3])
+    print("\nTesting grid search...")
+    test_optimise("grid-search", grids=[[0.05, 0.075, 0.1], [-0.01, -0.02, -0.03]])
+
     print("\nTesting Nelder-Mead with 60% train-test split...")
-    test_optimise_train_test_split("nelder-mead", train_test_split=0.6, x0=[0.07, -1e-3])
+    test_optimise_train_test_split(
+        "nelder-mead", train_test_split=0.6, x0=[0.07, -1e-3]
+    )
     print("\nTesting dual annealing with 60% train-test split...")
-    test_optimise_train_test_split("dual-annealing", train_test_split=0.6, x0=[0.07, -1e-3])
+    test_optimise_train_test_split(
+        "dual-annealing", train_test_split=0.6, x0=[0.07, -1e-3]
+    )

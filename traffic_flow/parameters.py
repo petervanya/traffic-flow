@@ -2,6 +2,7 @@
 BACKENDS = ["networkx", "igraph"]
 ASSIGNMENT_KINDS = ["incremental"]
 BASIC_SKIM_KINDS = ["t0", "tcur", "length"]
+SKIM_DIAGONAL_KINDS = ["area", "density"]
 DIST_FUNCS = ["exp", "poly", "power"]
 
 # table columns
@@ -10,4 +11,4 @@ COLS_LINKS = ["id", "node_from", "node_to", "type", "length"]
 COLS_LINK_TYPES = ["type", "type_name", "v0", "qmax", "a", "b"]
 
 # optmisation
-OPT_FUNS = ["dual-annealing", "nelder-mead", "gradient-descent"]
+OPT_FUNS = ["dual-annealing", "nelder-mead", "gradient-descent", "grid-search"]

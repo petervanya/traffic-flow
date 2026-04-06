@@ -41,4 +41,4 @@ jobs:
     - name: Test with pytest
       run: |
         python -c "import traffic_flow"
-        pytest testing/test*
+        pytest testing/test*py

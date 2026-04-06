@@ -4,12 +4,13 @@ Authors: Katarina Simkova and Peter Vanya
 import numpy as np
 import pandas as pd
 import time
+from itertools import product
 import igraph as ig
 import networkx as nx
 
 from scipy.optimize import dual_annealing, minimize
 
-from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, SKIM_DIAGONAL_KINDS, DIST_FUNCS, BACKENDS
 from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
 from .parameters import OPT_FUNS
 
@@ -139,6 +140,11 @@ class MTM:
         # merge with link types
         self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
+
+        # check for missing data
+        if self.df_links["v0"].isna().any():
+            missing = self.df_links["v0"].isna().sum()
+            raise ValueError(f"Missing v0 values in links: {missing}. Check for missing link types.")
 
         # assign empty attributes
         self.df_links["t0"] = (
@@ -321,6 +327,8 @@ class MTM:
         """
         if kind not in BASIC_SKIM_KINDS:
             raise ValueError(f"Choose kind among {BASIC_SKIM_KINDS}")
+        if diagonal not in ["density", "area"]:
+            raise ValueError(f"Choose diagonal among {SKIM_DIAGONAL_KINDS}'")
 
         # get shortest paths
         if self.backend == "igraph":
@@ -635,9 +643,10 @@ class MTM:
 
     def optimise(
         self,
-        n_iter=10,
         method="dual-annealing",
+        n_iter=10,
         x0=None,
+        grids=None,
         bounds=None,
         skim="tcur",
         seed=1101,
@@ -656,8 +665,14 @@ class MTM:
             Optimisation method to use. Supported methods are:
             - "dual-annealing"
             - "nelder-mead"
+            - "grid-search"
         x0 : array-like, optional, default=None
             Initial estimates of the parameters. Required for "nelder-mead".
+        grids : list of array-like, optional, default=None
+            Parameter grids for "grid-search". Must be a list where each
+            element is a 1D array of candidate values for one optimisation
+            parameter. The number of arrays must equal the number of
+            optimisation parameters.
         bounds : list of tuple, optional, default=None
             Bounds for the parameters. If not provided, default bounds are used
             for "dual-annealing".
@@ -675,17 +690,11 @@ class MTM:
             If < 1.0, randomly splits measured sections into train and test sets.
         Returns
         -------
-        res : OptimizeResult
-            The optimisation result represented as a `scipy.optimize.OptimizeResult` object.
-            Includes the following attributes:
-            - `x` : ndarray, the solution of the optimisation.
-            - `fun` : float, the value of the objective function at the solution.
-            - `success` : bool, whether or not the optimiser exited successfully.
-            - `nit` : int, number of iterations performed.
-            - `nfev` : int, number of function evaluations performed.
-            - `hist` : list, history of function evaluations (if `record=True`).
-            - `train_error` : float, mean GEH error on training set.
-            - `test_error` : float, mean GEH error on test set (if train_split < 1.0).
+        res : OptimizeResult or pd.DataFrame
+            For "dual-annealing" and "nelder-mead", returns an
+            `scipy.optimize.OptimizeResult` object.
+            For "grid-search", returns a `pd.DataFrame` with all tried
+            parameter combinations and corresponding objective values.
         """
         # basic checks
         assert (
@@ -699,17 +708,22 @@ class MTM:
         if not (0 < train_test_split <= 1.0):
             raise ValueError("train_test_split must be between 0 and 1")
 
-        # compute the number of optimisation parameters
-        n_param = 0
+        # define optimisation parameter specification
+        param_specs = []
         for ds in self.dstrat.index:
-            par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
-            n_param += par + 1
+            param_specs.append((ds, "attr_param"))
+            if self.dpar.loc[ds, "func"] == "power":
+                param_specs.append((ds, "dist_param_0"))
+                param_specs.append((ds, "dist_param_1"))
+            else:
+                param_specs.append((ds, "dist_param"))
+        n_param = len(param_specs)
 
         # compose list of bounds if required
         if method in ["dual-annealing"]:
             if bounds == None:
                 bounds = []
-                for m in self.dstrat.index:
+                for ds in self.dstrat.index:
                     bounds += [(1e-6, 3.0)]
                     par = 2 if self.dpar.loc[ds, "func"] == "power" else 1
                     if par == 1:  # exp, poly
@@ -755,6 +769,65 @@ class MTM:
         # optimisation core
         tic = time.time()
         hist = []
+        if method == "grid-search":
+            if grids is None:
+                raise ValueError("grid-search requires grids")
+            if len(grids) != n_param:
+                raise ValueError(f"grids must contain {n_param} arrays")
+
+            grid_arrays = []
+            for i, grid in enumerate(grids):
+                arr = np.asarray(grid, dtype=float).ravel()
+                if arr.size == 0:
+                    raise ValueError(f"grid at index {i} is empty")
+                grid_arrays.append(arr)
+
+            records = []
+            best_err = np.inf
+            best_params = None
+
+            for combo in product(*grid_arrays):
+                z = np.asarray(combo, dtype=float)
+                err = self._obj_function(z, *opt_args)
+
+                row = {
+                    f"{ds}_{par}": z[i]
+                    for i, (ds, par) in enumerate(param_specs)
+                }
+                row["objective"] = err
+                records.append(row)
+
+                if err < best_err:
+                    best_err = err
+                    best_params = z.copy()
+
+            res = pd.DataFrame(records)
+            # res = res.sort_values("objective", ascending=True).reset_index(drop=True)
+
+            # store best parameters in the same format as self.opt_params
+            z_idx = 0
+            for ds in self.dstrat.index:
+                attr_param = best_params[z_idx]
+                z_idx += 1
+                if self.dpar.loc[ds, "func"] == "power":
+                    dist_param = [best_params[z_idx], best_params[z_idx + 1]]
+                    z_idx += 2
+                else:
+                    dist_param = best_params[z_idx]
+                    z_idx += 1
+                self.opt_params.loc[ds] = [attr_param, dist_param]
+
+            toc = time.time()
+            print(f"Grid search completed. Tried {len(res)} combinations")
+            print(f"Best objective: {best_err:.4f}")
+
+            if train_test_split < 1.0 and best_params is not None:
+                test_error = self._obj_function(best_params, skim, weights, test_mask)
+                print(f"Test error: {test_error:.4f}")
+
+            print("Time: %.2f s" % (toc - tic))
+            return res
+
         if method == "dual-annealing":
 
             def callback(x, f, context):
@@ -851,8 +924,17 @@ class MTM:
         print("Time: %.2f s" % (toc - tic))
 
         # store optimized parameters in a dataframe
-        for m, n in enumerate(self.dstrat.index):
-            self.opt_params.loc[n] = [res.x[2 * m], res.x[2 * m + 1]]
+        z_idx = 0
+        for ds in self.dstrat.index:
+            attr_param = res.x[z_idx]
+            z_idx += 1
+            if self.dpar.loc[ds, "func"] == "power":
+                dist_param = [res.x[z_idx], res.x[z_idx + 1]]
+                z_idx += 2
+            else:
+                dist_param = res.x[z_idx]
+                z_idx += 1
+            self.opt_params.loc[ds] = [attr_param, dist_param]
 
         return res
 
@@ -876,6 +958,8 @@ class MTM:
         - train_mask : ndarray of bool, optional
             Boolean mask indicating which measured sections to use for error computation.
             If None, uses all measured sections.
+        - measured_col : str, optional, default="count"
+            Name of the column in df_links containing measured traffic counts.
         """
         # basic checks
         assert len(self.dstrat) > 0, "no demand strata defined"
