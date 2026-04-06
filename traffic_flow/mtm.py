@@ -10,7 +10,7 @@ import networkx as nx
 
 from scipy.optimize import dual_annealing, minimize
 
-from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, DIST_FUNCS, BACKENDS
+from .parameters import ASSIGNMENT_KINDS, BASIC_SKIM_KINDS, SKIM_DIAGONAL_KINDS, DIST_FUNCS, BACKENDS
 from .parameters import COLS_NODES, COLS_LINKS, COLS_LINK_TYPES
 from .parameters import OPT_FUNS
 
@@ -140,6 +140,11 @@ class MTM:
         # merge with link types
         self.df_links = self.df_links.merge(self.df_lt, how="left", on="type")
         self.df_links = self.df_links.set_index(["node_from", "node_to"])
+
+        # check for missing data
+        if self.df_links["v0"].isna().any():
+            missing = self.df_links["v0"].isna().sum()
+            raise ValueError(f"Missing v0 values in links: {missing}. Check for missing link types.")
 
         # assign empty attributes
         self.df_links["t0"] = (
@@ -322,6 +327,8 @@ class MTM:
         """
         if kind not in BASIC_SKIM_KINDS:
             raise ValueError(f"Choose kind among {BASIC_SKIM_KINDS}")
+        if diagonal not in ["density", "area"]:
+            raise ValueError(f"Choose diagonal among {SKIM_DIAGONAL_KINDS}'")
 
         # get shortest paths
         if self.backend == "igraph":
@@ -951,6 +958,8 @@ class MTM:
         - train_mask : ndarray of bool, optional
             Boolean mask indicating which measured sections to use for error computation.
             If None, uses all measured sections.
+        - measured_col : str, optional, default="count"
+            Name of the column in df_links containing measured traffic counts.
         """
         # basic checks
         assert len(self.dstrat) > 0, "no demand strata defined"

@@ -2,6 +2,7 @@
 BACKENDS = ["networkx", "igraph"]
 ASSIGNMENT_KINDS = ["incremental"]
 BASIC_SKIM_KINDS = ["t0", "tcur", "length"]
+SKIM_DIAGONAL_KINDS = ["area", "density"]
 DIST_FUNCS = ["exp", "poly", "power"]
 
 # table columns
