@@ -742,17 +742,18 @@ class MTM:
             np.logical_not(np.isnan(self.df_links["count"])),
             self.df_links["count"] != 0,
         )
-        measured_indices = np.where(measured_mask)[0]
-        n_measured = len(measured_indices)
-        if n_measured == 0:
+        measured_pos = np.where(measured_mask)[0]
+        measured_id = np.unique(self.df_links.loc[measured_mask, "id"].values)
+        n_measured_id = len(measured_id)
+        if n_measured_id == 0:
             raise ValueError("No measured sections available for optimization")
 
         # create train-test split
         np.random.seed(seed)
-        n_train = int(np.ceil(train_test_split * n_measured))
-        train_indices = np.random.choice(measured_indices, size=n_train, replace=False)
-        train_mask = np.zeros(len(self.df_links), dtype=bool)
-        train_mask[train_indices] = True
+        n_train = int(np.ceil(train_test_split * n_measured_id))
+        train_indices = np.random.choice(measured_id, size=n_train, replace=False)
+        train_mask = np.isin(self.df_links['id'], train_indices)
+        self.df_links['train_mask'] = train_mask
 
         if train_test_split < 1.0:
             test_mask = measured_mask & ~train_mask
