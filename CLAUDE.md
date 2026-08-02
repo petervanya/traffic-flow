@@ -4,11 +4,32 @@ Guidance for Claude Code when working in this repository.
 
 ## What this is
 
-A Python library for forecasting road traffic flows on roads.
+This is a Python library for forecasting road traffic flows on roads.
 It implements the classic three-step travel model (trip generation → distribution → assignment).
 There is an extra feature: data-driven calibration of model parameters against measured traffic counts.
 
 It is used as a library for importing into scripts and notebooks. Conceptually similar to scikit-learn.
+
+## Rules and workflow
+
+- The main file is `mtm.py`. There are other versions starting with `mtm`, but these are not actively developed.
+- There are other auxiliary files: `parameters.py` storing parametric options, `utils.py` storing functions to read inputs,
+  `sample_networks.py` storing methods to read sample network objects
+- Always use TDD: test-driven development.
+- Main features should be documented for users in `README.md`.
+- Write documentation on top of class or method in line with standards for Python packages.
+- As part of documentation, always write a short summary on top.
+- Stick to standard libraries as dependencies: numpy, pandas, scipy, geopandas, networkx, igraph
+- Package installation happens now via setup.py
+- Testing now happens on individual files, not the CI glob, since `test_inputs.py` hardcodes
+  machine-specific absolute paths under `Internal/` that don't exist on a fresh checkout:
+  ```bash
+  pytest testing/test_pipelines.py testing/test_pipelines_undirected.py \
+         testing/test_ig_directed.py testing/test_optimisation.py
+  ```
+- Lint: flake8 only, run in CI (`.github/workflows/python-package.yml`); no local config file,
+  no mypy/ruff/pre-commit/Makefile.
+- The project lives on Git with this workflow: feature branches → PR → merge to `master`. CI now runs only on `master`.
 
 ## Package layout
 
@@ -33,7 +54,7 @@ It is used as a library for importing into scripts and notebooks. Conceptually s
 - `Internal/`, `Pip_Testing/`, `venv/`, `dist/`, `*.egg-info/` — research material, throwaway
   venvs, and build artifacts. Not part of the shipped package; generally out of scope.
 
-## Domain model and pipeline
+## Transport modelling logic and pipeline
 
 Three input tables (pandas DataFrames) define a network:
 - **nodes** — `[id, is_zone, name, pop]`. A node is a **zone** (`is_zone=True`, trip
@@ -58,13 +79,13 @@ Pipeline on an `MTM` instance:
    `nelder-mead`, `grid-search`, `gradient-descent` (stubbed). Supports train/test splitting of
    measured links for validation.
 
-Backends: `igraph` (default, fast C core) vs `networkx` (pure Python). Networks can be directed
-(default, `MTM`) or undirected (`MTMUndirected`, `MTMnxUndirected`).
+Critical backend library is `igraph` (default, fast C core). Another one is `networkx` (versatile, but pure Python and slow).
+Networks can be directed (default, `MTM`) or undirected (`MTMUndirected`, `MTMnxUndirected`).
 
 There are no config files (YAML/JSON) — everything is configured via constructor/method
 arguments and the `dstrat`/`dpar` tables built up at runtime on the model instance.
 
-## Typical usage
+## Typical usage in scripting
 
 ```python
 from traffic_flow import MTM
@@ -74,20 +95,5 @@ model.read_data(df_nodes, df_link_types, df_links)
 model.generate("stratum-1", "pop", "pop", 0.5)
 model.compute_skims()
 model.distribute("stratum-1", "tcur", "exp", -0.02)
-model.assign("tcur")   # results land in model.df_links["q"]
+model.assign("tcur")
 ```
-
-## Dev workflow
-
-- **Install**: `pip install -e .`. `setup.py` is the authoritative packaging source (deps:
-  numpy, pandas, scipy, geopandas, openpyxl, networkx, python-igraph). `tmp.pyproject.toml` is
-  stale/inconsistent with `setup.py` — ignore it.
-- **Test**: run individual files, not the CI glob, since `test_inputs.py` hardcodes
-  machine-specific absolute paths under `Internal/` that don't exist on a fresh checkout:
-  ```bash
-  pytest testing/test_pipelines.py testing/test_pipelines_undirected.py \
-         testing/test_ig_directed.py testing/test_optimisation.py
-  ```
-- **Lint**: flake8 only, run in CI (`.github/workflows/python-package.yml`); no local config file,
-  no mypy/ruff/pre-commit/Makefile.
-- **Git workflow**: feature branches → PR → merge to `master`. CI runs only on `master`.
