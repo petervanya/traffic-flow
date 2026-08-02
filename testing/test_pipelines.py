@@ -1,104 +1,46 @@
 #!/usr/bin/env python3
-import numpy as np
-import pandas as pd
-import igraph as ig
-import networkx as nx
+"""
+End-to-end pipeline tests (generate -> compute_skims -> distribute -> assign)
+for the directed `MTM` class, across both graph backends and both sample
+networks.
+"""
+import pytest
 
-import traffic_flow
+from traffic_flow import MTM
 
-print(f'Numpy version: {np.__version__}')
-print(f'Pandas version: {pd.__version__}')
-print(f'Igraph version: {ig.__version__}')
-print(f'NetworkX version: {nx.__version__}')
-print(f'traffic-flow version: {traffic_flow.__version__}')
+BACKENDS = ["igraph", "networkx"]
+NETWORK_FIXTURES = ["network_1_data", "network_2_data"]
 
 
-def test_network_1_networkx():
-    from traffic_flow import MTM
-    from traffic_flow.sample_networks import load_network_1
+@pytest.mark.parametrize("network_fixture", NETWORK_FIXTURES)
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_full_pipeline(request, backend, network_fixture):
+    df_nodes, df_link_types, df_links = request.getfixturevalue(network_fixture)
+    mobility = 0.5
 
-    print('\nTesting NetworkX backend, network 1...')
-
-    df_nodes, df_link_types, df_links = load_network_1()
-    
-    model = MTM(backend="networkx", verbose=True)
-    print("Backend:", model.backend)
+    model = MTM(backend=backend)
+    assert model.backend == backend
     model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
+
+    total_pop = model.df_zones["pop"].sum()
+    model.generate("main-stratum", "pop", "pop", mobility)
     model.compute_skims()
     model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
+
+    # doubly-constrained gravity model must conserve total generated demand
+    total_demand = model.dmats["main-stratum"].values.sum()
+    assert total_demand == pytest.approx(total_pop * mobility, rel=1e-6)
+
+    # skim matrices are square, one row/col per zone
+    for kind in ("length", "t0", "tcur"):
+        assert model.skims[kind].shape == (model.Nz, model.Nz)
+
     model.assign("tcur")
 
-    print(model.df_links.head())
+    q = model.df_links["q"]
+    assert q.notna().all()
+    assert (q >= 0).all()
+    assert q.sum() > 0
 
-
-def test_network_2_networkx():
-    from traffic_flow import MTM
-    from traffic_flow.sample_networks import load_network_2
-
-    print('\nTesting NetworkX backend, network 2...')
-
-    df_nodes, df_link_types, df_links = load_network_2()
-    
-    model = MTM(backend="networkx", verbose=True)
-    print("Backend:", model.backend)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-def test_network_1_igraph():
-    from traffic_flow import MTM
-    from traffic_flow.sample_networks import load_network_1
-
-    print('\nTesting Igraph backend, network 1...')
-
-    df_nodes, df_link_types, df_links = load_network_1()
-    
-    model = MTM(backend="igraph", verbose=True)
-    print("Backend:", model.backend)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-def test_network_2_igraph():
-    from traffic_flow import MTM
-    from traffic_flow.sample_networks import load_network_2
-    
-    print('\nTesting Igraph backend, network 2...')
-
-    df_nodes, df_link_types, df_links = load_network_2()
-
-    model = MTM(backend="igraph", verbose=True)
-    print("Backend:", model.backend)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-if __name__ == '__main__':
-    test_network_1_networkx()
-    test_network_2_networkx()
-    test_network_1_igraph()
-    test_network_2_igraph()
+    # BPR volume-delay function never speeds traffic up below free flow
+    assert (model.df_links["tcur"] >= model.df_links["t0"] - 1e-9).all()
