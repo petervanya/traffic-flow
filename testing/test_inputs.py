@@ -98,6 +98,22 @@ def test_read_inputs_excel_synthetic(synthetic_raw_visum_excel):
     assert model.df_links["q"].sum() > 0
 
 
+def _write_shapefile_uppercase(gdf, path):
+    """
+    geopandas/fiona's ESRI Shapefile driver always writes lowercase sidecar
+    extensions (.shp/.shx/.dbf/.prj/.cpg) on disk regardless of the requested
+    case, so rename them to uppercase afterwards to match PTV-Visum-style
+    naming. Without this, `read_inputs_shapefile`'s hardcoded uppercase
+    `.SHP` paths only resolve by accident on case-insensitive filesystems
+    (macOS) and raise "No such file or directory" on case-sensitive ones
+    (Linux CI runners).
+    """
+    gdf.to_file(path)
+    stem = path.with_suffix("")
+    for f in stem.parent.glob(stem.name + ".*"):
+        f.rename(f.with_suffix(f.suffix.upper()))
+
+
 @pytest.fixture
 def synthetic_visum_shapefiles(tmp_path):
     """
@@ -112,7 +128,7 @@ def synthetic_visum_shapefiles(tmp_path):
     nodes = gpd.GeoDataFrame(
         {"NO": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3857"
     )
-    nodes.to_file(basepath / f"{basename}_node.SHP")
+    _write_shapefile_uppercase(nodes, basepath / f"{basename}_node.SHP")
 
     zones = gpd.GeoDataFrame(
         {
@@ -124,7 +140,7 @@ def synthetic_visum_shapefiles(tmp_path):
         geometry=[Point(-1, -1), Point(2, 2)],
         crs="EPSG:3857",
     )
-    zones.to_file(basepath / f"{basename}_zone_centroid.SHP")
+    _write_shapefile_uppercase(zones, basepath / f"{basename}_zone_centroid.SHP")
 
     links = gpd.GeoDataFrame(
         {
@@ -140,7 +156,7 @@ def synthetic_visum_shapefiles(tmp_path):
         geometry=[LineString([(0, 0), (1, 1)]), LineString([(1, 1), (0, 0)])],
         crs="EPSG:3857",
     )
-    links.to_file(basepath / f"{basename}_link.SHP")
+    _write_shapefile_uppercase(links, basepath / f"{basename}_link.SHP")
 
     connectors = gpd.GeoDataFrame(
         {
@@ -158,7 +174,7 @@ def synthetic_visum_shapefiles(tmp_path):
         ],
         crs="EPSG:3857",
     )
-    connectors.to_file(basepath / f"{basename}_connector.SHP")
+    _write_shapefile_uppercase(connectors, basepath / f"{basename}_connector.SHP")
 
     return str(basepath), basename
 
