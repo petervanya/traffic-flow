@@ -21,12 +21,17 @@ It is used as a library for importing into scripts and notebooks. Conceptually s
 - As part of documentation, always write a short summary on top.
 - Stick to standard libraries as dependencies: numpy, pandas, scipy, geopandas, networkx, igraph
 - Package installation happens now via setup.py
-- Testing now happens on individual files, not the CI glob, since `test_inputs.py` hardcodes
-  machine-specific absolute paths under `Internal/` that don't exist on a fresh checkout:
-  ```bash
-  pytest testing/test_pipelines.py testing/test_pipelines_undirected.py \
-         testing/test_ig_directed.py testing/test_optimisation.py
-  ```
+- Testing: run `pytest testing` (config lives in `pytest.ini`; test discovery skips
+  `testing/Old`, `testing/Backup`, `.ipynb_checkpoints`). `testing/conftest.py` provides
+  session-scoped fixtures (`network_1_data`, `network_2_data`, and undirected variants) —
+  reuse them instead of reloading sample networks by hand. `testing/test_unit.py` covers
+  pure building blocks (validation, BPR formula, GEH, distribution kernels); the other
+  `test_*.py` files are end-to-end pipeline tests, parametrized over backend/network where
+  applicable. Tests requiring real machine-local data (`Internal/`, PTV Visum shapefile
+  exports) self-skip via `pytest.mark.skipif` when that data isn't present, so the whole
+  suite is CI-safe; `test_inputs.py` also has synthetic in-memory fixtures that exercise the
+  same `utils.py` import/wrangling logic without needing real data.
+  Get a coverage report with `pytest testing --cov=traffic_flow --cov-report=term-missing`.
 - Lint: flake8 only, run in CI (`.github/workflows/python-package.yml`); no local config file,
   no mypy/ruff/pre-commit/Makefile.
 - The project lives on Git with this workflow: feature branches → PR → merge to `master`. CI now runs only on `master`.
