@@ -1,87 +1,95 @@
 #!/usr/bin/env python
 """
-Testing of the optimisation procedure using Igraph backend.
+Testing of the optimisation procedure using the igraph backend.
 
 Created: 2020-09-24
 Update: 2023-08-15
 """
-import time
+import numpy as np
+import pytest
 
 from traffic_flow import MTM
 from traffic_flow.sample_networks import load_network_2
 
 
-def test_optimise(method, x0=None, grids=None):
-    # loading data
-    df_nodes, df_link_types, df_links = load_network_2()
-
-    # first few steps
+@pytest.fixture
+def base_model(network_2_data):
+    """A model with generation, skims and distribution already run,
+    ready to be passed into `optimise()`."""
+    df_nodes, df_link_types, df_links = network_2_data
     model = MTM()
-    print("Backend:", model.backend)
-
-    tic = time.time()
     model.read_data(df_nodes, df_link_types, df_links)
     model.generate("ALL", "pop", "pop", 0.5)
     model.compute_skims()
     model.distribute("ALL", "tcur", "exp", -0.02)
-    toc = time.time()
-    print("Basic cycle done. Time: %.3f s" % (toc - tic))
-
-    # optimisation
-    tic = time.time()
-    res = model.optimise(method=method, n_iter=10, x0=x0, grids=grids, record=True)
-    toc = time.time()
-
-    print(res)
-
-    print(model.opt_params)
+    return model
 
 
-def test_optimise_train_test_split(method, train_test_split=0.6, x0=None):
-    """Test optimisation with train-test split for validation."""
-    # loading data
+@pytest.mark.parametrize(
+    "method, x0",
+    [
+        ("nelder-mead", [0.07, -1e-3]),
+        ("dual-annealing", [0.07, -1e-3]),
+    ],
+)
+def test_optimise_reduces_error(base_model, method, x0):
+    base_model.compute_error()
+    initial_error = base_model.df_links["geh"].mean()
+
+    res = base_model.optimise(method=method, n_iter=5, x0=x0, record=True)
+
+    assert np.isfinite(res.train_error)
+    assert res.train_error < initial_error
+    assert base_model.opt_params.shape == (1, 2)
+    assert list(base_model.opt_params.columns) == ["attr_param", "dist_param"]
+
+
+def test_optimise_grid_search(base_model):
+    res = base_model.optimise(
+        method="grid-search", grids=[[0.05, 0.075], [-0.01, -0.02]]
+    )
+
+    assert len(res) == 4  # full cartesian product of the two 2-value grids
+    assert "objective" in res.columns
+    assert np.isfinite(res["objective"]).all()
+    assert (res["objective"] >= 0).all()
+    assert base_model.opt_params.shape == (1, 2)
+
+
+def test_optimise_train_test_split(base_model):
+    res = base_model.optimise(
+        method="nelder-mead",
+        n_iter=5,
+        x0=[0.07, -1e-3],
+        train_test_split=0.6,
+        seed=42,
+    )
+
+    assert np.isfinite(res.train_error)
+    assert np.isfinite(res.test_error)
+    assert "train_mask" in base_model.df_links.columns
+
+    measured = base_model.df_links["count"].notna()
+    n_measured_ids = base_model.df_links.loc[measured, "id"].nunique()
+    n_train_ids = base_model.df_links.loc[
+        base_model.df_links["train_mask"], "id"
+    ].nunique()
+    assert n_train_ids == int(np.ceil(0.6 * n_measured_ids))
+
+
+def test_optimise_requires_generation_step():
     df_nodes, df_link_types, df_links = load_network_2()
-
-    # first few steps
     model = MTM()
-    print("Backend:", model.backend)
-
-    tic = time.time()
     model.read_data(df_nodes, df_link_types, df_links)
-    model.generate("ALL", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("ALL", "tcur", "exp", -0.02)
-    toc = time.time()
-    print("Basic cycle done. Time: %.3f s" % (toc - tic))
-
-    # optimisation with train-test split
-    tic = time.time()
-    res = model.optimise(
-        method=method, n_iter=10, x0=x0, record=True, train_test_split=train_test_split
-    )
-    toc = time.time()
-
-    print(res)
-    print(model.opt_params)
-
-    # Print train vs test error if available
-    print(f"\nTrain error (GEH): {res.train_error:.3f}")
-    print(f"Test error (GEH): {res.test_error:.3f}")
+    with pytest.raises(AssertionError):
+        model.optimise(method="nelder-mead", x0=[0.07, -1e-3])
 
 
-if __name__ == "__main__":
-    print("\nTesting Nelder-Mead method...")
-    test_optimise("nelder-mead", x0=[0.07, -1e-3])
-    print("\nTesting dual annealing...")
-    test_optimise("dual-annealing", x0=[0.07, -1e-3])
-    print("\nTesting grid search...")
-    test_optimise("grid-search", grids=[[0.05, 0.075, 0.1], [-0.01, -0.02, -0.03]])
+def test_optimise_invalid_method(base_model):
+    with pytest.raises(ValueError):
+        base_model.optimise(method="not-a-method", x0=[0.07, -1e-3])
 
-    print("\nTesting Nelder-Mead with 60% train-test split...")
-    test_optimise_train_test_split(
-        "nelder-mead", train_test_split=0.6, x0=[0.07, -1e-3]
-    )
-    print("\nTesting dual annealing with 60% train-test split...")
-    test_optimise_train_test_split(
-        "dual-annealing", train_test_split=0.6, x0=[0.07, -1e-3]
-    )
+
+def test_optimise_grid_search_requires_grids(base_model):
+    with pytest.raises(ValueError):
+        base_model.optimise(method="grid-search")

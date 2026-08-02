@@ -1,100 +1,41 @@
 #!/usr/bin/env python3
-import numpy as np
-import pandas as pd
-import igraph as ig
-import networkx as nx
+"""
+End-to-end pipeline tests (generate -> compute_skims -> distribute -> assign)
+for the undirected model variants, across both graph backends and both
+sample networks.
+"""
+import pytest
 
-import traffic_flow
+from traffic_flow import MTMUndirected, MTMnxUndirected
 
-print(f'Numpy version: {np.__version__}')
-print(f'Pandas version: {pd.__version__}')
-print(f'Igraph version: {ig.__version__}')
-print(f'NetworkX version: {nx.__version__}')
-print(f'traffic-flow version: {traffic_flow.__version__}')
+MODEL_CLASSES = [MTMUndirected, MTMnxUndirected]
+NETWORK_FIXTURES = ["network_1_undirected_data", "network_2_undirected_data"]
 
 
-def test_network_1_nx_undirected():
-    from traffic_flow import MTMnxUndirected
-    from traffic_flow.sample_networks import load_network_1_undirected
+@pytest.mark.parametrize("network_fixture", NETWORK_FIXTURES)
+@pytest.mark.parametrize("model_cls", MODEL_CLASSES, ids=lambda c: c.__name__)
+def test_full_pipeline_undirected(request, model_cls, network_fixture):
+    df_nodes, df_link_types, df_links = request.getfixturevalue(network_fixture)
+    mobility = 0.5
 
-    print('\nTesting NetworkX backend, network 1 undirected...')
-
-    df_nodes, df_link_types, df_links = load_network_1_undirected()
-    
-    model = MTMnxUndirected(verbose=True)
+    model = model_cls()
     model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
+
+    total_pop = model.df_zones["pop"].sum()
+    model.generate("main-stratum", "pop", "pop", mobility)
     model.compute_skims()
     model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
+
+    total_demand = model.dmats["main-stratum"].values.sum()
+    assert total_demand == pytest.approx(total_pop * mobility, rel=1e-6)
+
+    for kind in ("length", "t0", "tcur"):
+        assert model.skims[kind].shape == (model.Nz, model.Nz)
+
     model.assign("tcur")
 
-    print(model.df_links.head())
-
-
-def test_network_2_nx_undirected():
-    from traffic_flow import MTMnxUndirected
-    from traffic_flow.sample_networks import load_network_2_undirected
-
-    print('\nTesting NetworkX backend, network 2 undirected...')
-
-    df_nodes, df_link_types, df_links = load_network_2_undirected()
-    
-    model = MTMnxUndirected(verbose=True)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-def test_network_1_ig_undirected():
-    from traffic_flow import MTMUndirected
-    from traffic_flow.sample_networks import load_network_1_undirected
-
-    print('\nTesting Igraph backend, network 1 undirected...')
-
-    df_nodes, df_link_types, df_links = load_network_1_undirected()
-    
-    model = MTMUndirected(verbose=True)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-def test_network_2_ig_undirected():
-    from traffic_flow import MTMUndirected
-    from traffic_flow.sample_networks import load_network_2_undirected
-    
-    print('\nTesting Igraph backend, network 2 undirected...')
-
-    df_nodes, df_link_types, df_links = load_network_2_undirected()
-
-    model = MTMUndirected(verbose=True)
-    model.read_data(df_nodes, df_link_types, df_links)
-    
-    model.generate("main-stratum", "pop", "pop", 0.5)
-    model.compute_skims()
-    model.distribute("main-stratum", "tcur", "exp", -0.02)
-    
-    model.assign("tcur")
-
-    print(model.df_links.head())
-
-
-if __name__ == '__main__':
-    test_network_1_nx_undirected()
-    test_network_2_nx_undirected()
-    test_network_1_ig_undirected()
-    test_network_2_ig_undirected()
+    q = model.df_links["q"]
+    assert q.notna().all()
+    assert (q >= 0).all()
+    assert q.sum() > 0
+    assert (model.df_links["tcur"] >= model.df_links["t0"] - 1e-9).all()
